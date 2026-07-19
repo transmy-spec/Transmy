@@ -1,0 +1,60 @@
+{
+  "realm": "transmissions",
+  "displayName": "Transmissions",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": true,
+  "rememberMe": true,
+  "loginWithEmailAllowed": true,
+  "clients": [
+    {
+      "clientId": "transmissions-web",
+      "name": "Application Transmissions",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "local-transmissions-client-secret-2026",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "publicClient": false,
+      "redirectUris": ["https://localhost/auth/callback"],
+      "webOrigins": ["https://localhost"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://localhost/*"
+      }
+    }
+  ],
+  "users": [
+    {
+      "id": "11111111-1111-4111-8111-111111111111",
+      "username": "admin",
+      "email": "admin@transmissions.test",
+      "firstName": "Camille",
+      "lastName": "Martin",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{"type": "password", "value": "Admin-Local-2026!", "temporary": false}]
+    },
+    {
+      "id": "22222222-2222-4222-8222-222222222222",
+      "username": "professionnel",
+      "email": "professionnel@transmissions.test",
+      "firstName": "Alex",
+      "lastName": "Bernard",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{"type": "password", "value": "Pro-Local-2026!", "temporary": false}]
+    },
+    {
+      "id": "33333333-3333-4333-8333-333333333333",
+      "username": "chefservice",
+      "email": "chefservice@transmissions.test",
+      "firstName": "Sophie",
+      "lastName": "Laurent",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{"type": "password", "value": "Chef-Local-2026!", "temporary": false}]
+    }
+  ]
+}
