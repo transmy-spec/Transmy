@@ -120,6 +120,24 @@ EOF
   chmod 0400 "$REALM_FILE"
 }
 
+provision_initial_accounts() {
+  domain=$1
+  issuer="https://$domain/oidc/realms/transmissions"
+  compose exec -T postgres-app psql \
+    --username transmissions_app \
+    --dbname transmissions \
+    --set ON_ERROR_STOP=1 \
+    --command "
+      UPDATE app.user_account
+      SET issuer = '$issuer'
+      WHERE subject IN (
+        '11111111-1111-4111-8111-111111111111',
+        '22222222-2222-4222-8222-222222222222',
+        '33333333-3333-4333-8333-333333333333'
+      );
+    " >/dev/null
+}
+
 setup() {
   require_root
   [ ! -e "$ENV_FILE" ] || die "$ENV_FILE already exists; use 'transmy upgrade' or remove it explicitly"
@@ -151,6 +169,7 @@ setup() {
   compose config --quiet
   compose build
   compose up -d --wait --wait-timeout 240
+  provision_initial_accounts "$domain"
   systemctl enable transmy.service transmy-backup.timer >/dev/null 2>&1 || true
   systemctl start transmy-backup.timer >/dev/null 2>&1 || true
   say ""
@@ -245,6 +264,8 @@ upgrade() {
   restore_test
   compose build
   compose up -d --wait --wait-timeout 240
+  domain=$(sed -n 's/^APP_DOMAIN=//p' "$ENV_FILE")
+  provision_initial_accounts "$domain"
   doctor
 }
 
