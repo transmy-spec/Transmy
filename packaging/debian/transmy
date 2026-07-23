@@ -1,0 +1,230 @@
+#!/bin/sh
+set -eu
+
+APP_DIR=${TRANSMY_APP_DIR:-/usr/lib/transmy}
+CONFIG_DIR=${TRANSMY_CONFIG_DIR:-/etc/transmy}
+STATE_DIR=${TRANSMY_STATE_DIR:-/var/lib/transmy}
+ENV_FILE=${TRANSMY_ENV_FILE:-$CONFIG_DIR/transmy.env}
+REALM_FILE=$CONFIG_DIR/keycloak-realm.json
+COMPOSE_PROD=$APP_DIR/compose.production.yaml
+COMPOSE_BASE=$APP_DIR/compose.yaml
+
+say() { printf '%s\n' "$*"; }
+die() { printf 'transmy: %s\n' "$*" >&2; exit 1; }
+require_root() { [ "$(id -u)" -eq 0 ] || die "this command must be run as root"; }
+
+compose() {
+  if docker compose version >/dev/null 2>&1; then
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_BASE" -f "$COMPOSE_PROD" "$@"
+  elif command -v docker-compose >/dev/null 2>&1; then
+    docker-compose --env-file "$ENV_FILE" -f "$COMPOSE_BASE" -f "$COMPOSE_PROD" "$@"
+  else
+    die "Docker Compose v2 is not installed"
+  fi
+}
+
+random_secret() { openssl rand -base64 48 | tr -d '\n'; }
+
+prompt_value() {
+  label=$1
+  default=$2
+  printf '%s [%s]: ' "$label" "$default" >&2
+  read -r answer
+  printf '%s' "${answer:-$default}"
+}
+
+validate_domain() {
+  printf '%s' "$1" | grep -Eq '^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$' ||
+    die "invalid domain name: $1"
+  printf '%s' "$1" | grep -q '\.' || die "a fully qualified public domain is required"
+}
+
+validate_email() {
+  printf '%s' "$1" | grep -Eq '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$' ||
+    die "invalid email address: $1"
+}
+
+write_configuration() {
+  domain=$1
+  email=$2
+  language=$3
+  oidc_secret=$(random_secret)
+  admin_password=$(random_secret)
+  manager_password=$(random_secret)
+  professional_password=$(random_secret)
+
+  umask 077
+  mkdir -p "$CONFIG_DIR" "$STATE_DIR"
+  cat >"$ENV_FILE" <<EOF
+APP_ENV=production
+APP_PUBLIC_URL=https://$domain
+APP_DOMAIN=$domain
+ACME_EMAIL=$email
+VITE_DEFAULT_LOCALE=$language
+APP_LOG_LEVEL=INFO
+APP_DATABASE_NAME=transmissions
+APP_DATABASE_USER=transmissions_app
+APP_DATABASE_PASSWORD=$(random_secret)
+KEYCLOAK_DATABASE_NAME=keycloak
+KEYCLOAK_DATABASE_USER=keycloak_app
+KEYCLOAK_DATABASE_PASSWORD=$(random_secret)
+KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME=transmy-bootstrap
+KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD=$(random_secret)
+OIDC_CLIENT_SECRET=$oidc_secret
+SESSION_SECRET=$(random_secret)
+FIELD_ENCRYPTION_KEY=$(random_secret)
+BACKUP_ENCRYPTION_PASSWORD=$(random_secret)
+BACKUP_RETENTION_COUNT=14
+BACKUP_MAX_AGE_HOURS=26
+RESTORE_MAX_AGE_HOURS=744
+INTEGRATION_ALLOWED_HOSTS=host.docker.internal
+KEYCLOAK_REALM_FILE=$REALM_FILE
+EOF
+
+  python3 "$APP_DIR/packaging/debian/configure-realm.py" \
+    "$APP_DIR/infrastructure/keycloak/transmissions-realm.json" \
+    "$REALM_FILE" "$domain" "$oidc_secret" \
+    "$admin_password" "$manager_password" "$professional_password"
+
+  cat >"$STATE_DIR/initial-credentials.txt" <<EOF
+Transmy initial accounts for https://$domain
+
+Administrator: admin
+Password: $admin_password
+
+Service manager: chefservice
+Password: $manager_password
+
+Professional: professionnel
+Password: $professional_password
+
+Change these passwords at first login. Delete this file afterwards:
+  shred -u $STATE_DIR/initial-credentials.txt
+EOF
+  chmod 0600 "$ENV_FILE" "$REALM_FILE" "$STATE_DIR/initial-credentials.txt"
+}
+
+setup() {
+  require_root
+  [ ! -e "$ENV_FILE" ] || die "$ENV_FILE already exists; use 'transmy upgrade' or remove it explicitly"
+  command -v docker >/dev/null 2>&1 || die "Docker Engine is not installed"
+  command -v openssl >/dev/null 2>&1 || die "OpenSSL is not installed"
+  command -v python3 >/dev/null 2>&1 || die "Python 3 is not installed"
+
+  domain=${TRANSMY_DOMAIN:-$(prompt_value "Public domain" "transmissions.example.org")}
+  email=${TRANSMY_ACME_EMAIL:-$(prompt_value "ACME email" "admin@$domain")}
+  language=${TRANSMY_LANGUAGE:-$(prompt_value "Default language (fr/en)" "fr")}
+  validate_domain "$domain"
+  validate_email "$email"
+  [ "$language" = fr ] || [ "$language" = en ] || die "language must be 'fr' or 'en'"
+
+  say "Generating installation-specific secrets and Keycloak realm..."
+  write_configuration "$domain" "$email" "$language"
+  say "Building production images. This can take several minutes..."
+  compose config --quiet
+  compose build
+  compose up -d --wait --wait-timeout 240
+  systemctl enable transmy.service transmy-backup.timer >/dev/null 2>&1 || true
+  systemctl start transmy-backup.timer >/dev/null 2>&1 || true
+  say ""
+  say "Transmy is available at https://$domain"
+  say "Initial credentials: $STATE_DIR/initial-credentials.txt"
+  say "This installation is suitable for evaluation with fictional data only."
+}
+
+start() {
+  require_root
+  [ -f "$ENV_FILE" ] || die "run 'transmy setup' first"
+  compose up -d --wait --wait-timeout 240
+}
+
+stop() {
+  require_root
+  [ -f "$ENV_FILE" ] || exit 0
+  compose down
+}
+
+status_cmd() {
+  require_root
+  [ -f "$ENV_FILE" ] || die "Transmy is not configured"
+  compose ps
+}
+
+doctor() {
+  require_root
+  failures=0
+  [ -r "$ENV_FILE" ] || { say "FAIL configuration is missing"; failures=1; }
+  command -v docker >/dev/null 2>&1 || { say "FAIL Docker is missing"; failures=1; }
+  docker info >/dev/null 2>&1 || { say "FAIL Docker daemon is unavailable"; failures=1; }
+  if [ "$failures" -eq 0 ]; then
+    compose config --quiet || failures=1
+    compose ps
+    domain=$(sed -n 's/^APP_DOMAIN=//p' "$ENV_FILE")
+    curl -fsS "https://$domain/api/v1/health/live" >/dev/null 2>&1 ||
+      { say "FAIL public health endpoint"; failures=1; }
+  fi
+  [ "$failures" -eq 0 ] || die "diagnostic failed"
+  say "OK configuration, containers and public health endpoint"
+}
+
+backup() {
+  require_root
+  [ -f "$ENV_FILE" ] || die "Transmy is not configured"
+  compose --profile operations run --rm backup
+}
+
+restore_test() {
+  require_root
+  [ -f "$ENV_FILE" ] || die "Transmy is not configured"
+  compose --profile operations run --rm restore-test
+}
+
+upgrade() {
+  require_root
+  [ -f "$ENV_FILE" ] || die "Transmy is not configured"
+  say "Creating and validating a backup before upgrade..."
+  backup
+  restore_test
+  compose build
+  compose up -d --wait --wait-timeout 240
+  doctor
+}
+
+logs() {
+  require_root
+  [ -f "$ENV_FILE" ] || die "Transmy is not configured"
+  compose logs --tail 200 "$@"
+}
+
+usage() {
+  cat <<'EOF'
+Usage: transmy COMMAND
+
+Commands:
+  setup          Configure and start a new installation
+  start          Start or reconcile the application
+  stop           Stop the application without deleting data
+  status         Show container status
+  doctor         Validate configuration and public health
+  backup         Create an encrypted backup
+  restore-test   Test the latest encrypted backup
+  upgrade        Backup, rebuild, migrate and validate
+  logs [SERVICE] Show recent technical logs
+EOF
+}
+
+command=${1:-help}
+[ "$#" -eq 0 ] || shift
+case "$command" in
+  setup) setup "$@" ;;
+  start) start "$@" ;;
+  stop) stop "$@" ;;
+  status) status_cmd "$@" ;;
+  doctor) doctor "$@" ;;
+  backup) backup "$@" ;;
+  restore-test) restore_test "$@" ;;
+  upgrade) upgrade "$@" ;;
+  logs) logs "$@" ;;
+  help|-h|--help) usage ;;
+  *) usage >&2; exit 2 ;;
+esac

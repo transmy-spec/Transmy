@@ -1,0 +1,11 @@
+[Unit]
+Description=Schedule the daily encrypted Transmy backup
+
+[Timer]
+OnCalendar=*-*-* 02:15:00
+RandomizedDelaySec=1800
+Persistent=true
+Unit=transmy-backup.service
+
+[Install]
+WantedBy=timers.target

@@ -8,6 +8,11 @@ services:
     read_only: true
     cap_drop: [ALL]
     cap_add: [NET_BIND_SERVICE]
+    healthcheck:
+      test: ["CMD", "caddy", "validate", "--config", "/etc/caddy/Caddyfile"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   frontend:
     image: transmissions-frontend:production

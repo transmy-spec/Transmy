@@ -1,0 +1,66 @@
+name: Debian package
+
+on:
+  push:
+    branches: [master, newest]
+    tags: ["v*"]
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "infrastructure/**"
+      - "packaging/debian/**"
+      - "compose.yaml"
+      - "compose.production.yaml"
+      - ".github/workflows/debian-package.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "infrastructure/**"
+      - "packaging/debian/**"
+      - "compose.yaml"
+      - "compose.production.yaml"
+      - ".github/workflows/debian-package.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: debian:13-slim
+    steps:
+      - name: Install build tools
+        run: |
+          apt-get update
+          apt-get install --yes ca-certificates git python3
+
+      - uses: actions/checkout@v4
+
+      - name: Validate scripts
+        run: |
+          sh -n packaging/debian/transmy
+          sh -n packaging/debian/build-package.sh
+          sh -n packaging/debian/build-apt-repository.sh
+          sh -n packaging/debian/install-apt-repository.sh.in
+          sh -n packaging/debian/test-package.sh
+          sh -n packaging/debian/postinst
+          sh -n packaging/debian/prerm
+          sh -n packaging/debian/postrm
+          python3 -m py_compile packaging/debian/configure-realm.py
+
+      - name: Build and inspect package
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          case "$VERSION" in
+            *[!0-9.]*|"") VERSION=0.24.0 ;;
+          esac
+          sh packaging/debian/build-package.sh "$VERSION"
+          sh packaging/debian/test-package.sh "dist/transmy_${VERSION}_all.deb"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: transmy-debian-package
+          path: dist/*.deb
+          if-no-files-found: error

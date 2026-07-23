@@ -66,6 +66,24 @@ flowchart LR
 
 ## Quick Start
 
+### Debian 13 Package
+
+Lot 24 provides a Debian package and a guided administration command:
+
+```bash
+curl -fsSLO https://transmy-spec.github.io/transmy/debian/install.sh
+less install.sh
+sudo sh install.sh
+sudo apt install transmy
+sudo transmy setup
+```
+
+The assistant generates installation-specific secrets, configures the public domain and
+Keycloak realm, starts the hardened production stack and schedules encrypted daily backups.
+Commands such as `transmy doctor`, `transmy backup` and `transmy upgrade` cover routine
+operations. Packages and repository metadata are signed with a dedicated OpenPGP key. See the
+[Debian 13 installation guide](docs/11-installation-debian.md).
+
 ### Requirements
 
 - Docker Desktop, or Docker Engine with Docker Compose v2;
@@ -186,6 +204,7 @@ deployment context.
 | [Pilot readiness](docs/07-preparation-pilote.md) | Acceptance and go-live conditions |
 | [Personalized support plan](docs/09-projet-personnalise.md) | Functional framework for personalized support planning |
 | [Operations](docs/10-exploitation-production.md) | Deployment, backup, restore and incident procedures |
+| [Debian 13 installation](docs/11-installation-debian.md) | Package, guided setup and system administration |
 
 The complete index is available in the [docs](docs/README.md) directory.
 

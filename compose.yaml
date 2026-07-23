@@ -166,7 +166,7 @@ services:
       KC_HOSTNAME: ${APP_PUBLIC_URL:-https://localhost}/oidc
       KC_HTTP_ENABLED: "true"
     volumes:
-      - ./infrastructure/keycloak/transmissions-realm.json:/opt/keycloak/data/import/transmissions-realm.json:ro
+      - ${KEYCLOAK_REALM_FILE:-./infrastructure/keycloak/transmissions-realm.json}:/opt/keycloak/data/import/transmissions-realm.json:ro
     networks:
       - web_internal
       - identity_data

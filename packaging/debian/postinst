@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eu
+
+install -d -m 0700 -o root -g root /etc/transmy /var/lib/transmy
+systemctl daemon-reload >/dev/null 2>&1 || true
+
+if [ ! -e /etc/transmy/transmy.env ]; then
+  printf '%s\n' "Transmy installed. Run 'sudo transmy setup' to configure it."
+else
+  printf '%s\n' "Transmy updated. Run 'sudo transmy upgrade' when your maintenance window starts."
+fi

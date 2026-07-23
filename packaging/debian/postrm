@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+
+systemctl daemon-reload >/dev/null 2>&1 || true
+
+if [ "${1:-}" = purge ]; then
+  printf '%s\n' \
+    "Configuration and Docker volumes were preserved to prevent accidental data loss." \
+    "Review /etc/transmy, /var/lib/transmy and Docker volumes manually."
+fi

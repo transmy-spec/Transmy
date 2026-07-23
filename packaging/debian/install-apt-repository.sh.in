@@ -1,0 +1,52 @@
+#!/bin/sh
+set -eu
+
+REPOSITORY_URL=https://transmy-spec.github.io/transmy/debian
+KEYRING=/usr/share/keyrings/transmy-archive-keyring.gpg
+SOURCES=/etc/apt/sources.list.d/transmy.sources
+EXPECTED_FINGERPRINT=@FINGERPRINT@
+
+[ "$(id -u)" -eq 0 ] || {
+  printf '%s\n' "Run this script as root." >&2
+  exit 1
+}
+
+. /etc/os-release
+[ "${ID:-}" = debian ] && [ "${VERSION_CODENAME:-}" = trixie ] || {
+  printf '%s\n' "Transmy currently supports Debian 13 (trixie) only." >&2
+  exit 1
+}
+
+apt-get update
+apt-get install --yes ca-certificates curl gnupg
+
+temporary_key=$(mktemp)
+cleanup() { rm -f "$temporary_key"; }
+trap cleanup EXIT INT TERM
+
+curl --fail --silent --show-error --proto '=https' --tlsv1.2 \
+  "$REPOSITORY_URL/transmy-archive-keyring.gpg" --output "$temporary_key"
+actual_fingerprint=$(
+  gpg --batch --with-colons --show-keys "$temporary_key" |
+    awk -F: '$1 == "fpr" { print $10; exit }'
+)
+[ "$actual_fingerprint" = "$EXPECTED_FINGERPRINT" ] || {
+  printf '%s\n' "Transmy repository signing key fingerprint mismatch." >&2
+  exit 1
+}
+
+install -m 0644 "$temporary_key" "$KEYRING"
+cat >"$SOURCES" <<EOF
+Types: deb
+URIs: $REPOSITORY_URL
+Suites: trixie
+Components: main
+Architectures: amd64
+Signed-By: $KEYRING
+EOF
+
+apt-get update
+printf '%s\n' \
+  "Transmy repository installed." \
+  "Signing key: $EXPECTED_FINGERPRINT" \
+  "Next command: apt install transmy"

@@ -6,6 +6,7 @@ Ce dossier décrit le cadrage fonctionnel, technique et de sécurité d'une appl
 
 - [Preparation du pilote](07-preparation-pilote.md)
 - [Phase 2](08-phase-2.md)
+- [Installation simplifiee sur Debian 13](11-installation-debian.md)
 
 1. [Utilisateurs et parcours](01-utilisateurs-et-parcours.md)
 2. [Exigences fonctionnelles et non fonctionnelles](02-exigences.md)

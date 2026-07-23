@@ -1,0 +1,96 @@
+name: Publish signed APT repository
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Debian package version
+        required: true
+        default: "0.24.0"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    container: debian:13-slim
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Install publishing tools
+        run: |
+          apt-get update
+          apt-get install --yes apt-utils ca-certificates git gnupg python3
+
+      - uses: actions/checkout@v4
+
+      - name: Select version
+        id: version
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = tag ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="$REQUESTED_VERSION"
+          fi
+          case "$VERSION" in
+            ""|*[!0-9.]*)
+              printf '%s\n' "Invalid Debian version: $VERSION" >&2
+              exit 1
+              ;;
+          esac
+          dpkg --validate-version "$VERSION"
+          printf 'value=%s\n' "$VERSION" >>"$GITHUB_OUTPUT"
+
+      - name: Import repository signing key
+        id: signing
+        env:
+          PRIVATE_KEY: ${{ secrets.APT_SIGNING_PRIVATE_KEY }}
+        run: |
+          test -n "$PRIVATE_KEY"
+          printf '%s' "$PRIVATE_KEY" | gpg --batch --import
+          FINGERPRINT=$(
+            gpg --batch --with-colons --list-secret-keys |
+              awk -F: '$1 == "fpr" { print $10; exit }'
+          )
+          test -n "$FINGERPRINT"
+          printf 'fingerprint=%s\n' "$FINGERPRINT" >>"$GITHUB_OUTPUT"
+
+      - name: Build Debian package
+        run: |
+          sh packaging/debian/build-package.sh "${{ steps.version.outputs.value }}"
+          sh packaging/debian/test-package.sh \
+            "dist/transmy_${{ steps.version.outputs.value }}_all.deb"
+
+      - name: Build and sign APT repository
+        env:
+          APT_SIGNING_KEY: ${{ steps.signing.outputs.fingerprint }}
+          APT_SIGNING_KEY_PASSPHRASE: ${{ secrets.APT_SIGNING_KEY_PASSPHRASE }}
+        run: |
+          test -n "$APT_SIGNING_KEY_PASSPHRASE"
+          sh packaging/debian/build-apt-repository.sh \
+            "dist/transmy_${{ steps.version.outputs.value }}_all.deb" \
+            public/debian
+          gpg --batch --verify \
+            public/debian/dists/trixie/Release.gpg \
+            public/debian/dists/trixie/Release
+          gpg --batch --verify public/debian/dists/trixie/InRelease
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,13 @@
+[Unit]
+Description=Create an encrypted Transmy backup
+Requires=docker.service
+After=docker.service transmy.service
+ConditionPathExists=/etc/transmy/transmy.env
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/transmy backup
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+TimeoutStartSec=3600

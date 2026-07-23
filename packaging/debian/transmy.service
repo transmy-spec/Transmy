@@ -1,0 +1,17 @@
+[Unit]
+Description=Transmy social care coordination platform
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+ConditionPathExists=/etc/transmy/transmy.env
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/transmy start
+ExecStop=/usr/bin/transmy stop
+TimeoutStartSec=600
+TimeoutStopSec=180
+
+[Install]
+WantedBy=multi-user.target
