@@ -19,6 +19,7 @@ mkdir -p \
   "$PACKAGE_ROOT/DEBIAN" \
   "$PACKAGE_ROOT/usr/bin" \
   "$PACKAGE_ROOT/usr/lib/transmy" \
+  "$PACKAGE_ROOT/usr/lib/transmy/packaging/debian" \
   "$PACKAGE_ROOT/usr/lib/systemd/system" \
   "$PACKAGE_ROOT/usr/share/doc/transmy"
 
