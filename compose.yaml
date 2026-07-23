@@ -28,6 +28,10 @@ services:
     build:
       context: ./frontend
       target: development
+      args:
+        VITE_DEFAULT_LOCALE: ${VITE_DEFAULT_LOCALE:-fr}
+    environment:
+      VITE_DEFAULT_LOCALE: ${VITE_DEFAULT_LOCALE:-fr}
     restart: unless-stopped
     networks:
       - web_internal

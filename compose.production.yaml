@@ -10,8 +10,11 @@ services:
     cap_add: [NET_BIND_SERVICE]
 
   frontend:
+    image: transmissions-frontend:production
     build:
       target: production
+      args:
+        VITE_DEFAULT_LOCALE: ${VITE_DEFAULT_LOCALE:-fr}
     read_only: true
     tmpfs:
       - /var/cache/nginx:uid=101,gid=101,mode=0750
@@ -22,6 +25,7 @@ services:
       test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1:8080/health"]
 
   api:
+    image: transmissions-api:production
     build:
       target: production
     read_only: true
@@ -30,6 +34,7 @@ services:
     cap_drop: [ALL]
 
   migrate:
+    image: transmissions-migrate:production
     build:
       target: production
     read_only: true
@@ -48,6 +53,7 @@ services:
       KC_HOSTNAME: https://${APP_DOMAIN:?Set APP_DOMAIN for production}/oidc
 
   operations-check:
+    image: transmissions-operations-check:production
     build: ./infrastructure/backup
     profiles: ["operations"]
     command: ["/usr/local/bin/operations-check.sh"]

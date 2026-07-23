@@ -20,6 +20,9 @@ CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 
 FROM base AS build
 
+ARG VITE_DEFAULT_LOCALE=fr
+ENV VITE_DEFAULT_LOCALE=$VITE_DEFAULT_LOCALE
+
 RUN npm ci
 
 COPY . .

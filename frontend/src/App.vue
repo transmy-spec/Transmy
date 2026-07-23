@@ -1,7 +1,9 @@
 <script setup lang="ts">
-/* global Event, FormData, HTMLInputElement */
-import { Activity, Archive, ArrowLeft, BarChart3, Bell, Building2, CalendarDays, CheckCircle2, CircleAlert, ClipboardCheck, ContactRound, Download, FileClock, LayoutDashboard, ListChecks, LogOut, Menu, Paperclip, Pencil, Plug, Plus, Printer, Search, Send, ShieldCheck, Target, Trash2, Users, X } from '@lucide/vue'
+/* global Event, FormData, HTMLInputElement, HTMLSelectElement */
+import { Activity, Archive, ArrowLeft, BarChart3, Bell, Building2, CalendarDays, CheckCircle2, CircleAlert, ClipboardCheck, ContactRound, Download, FileClock, Languages, LayoutDashboard, ListChecks, LogOut, Menu, Paperclip, Pencil, Plug, Plus, Printer, Search, Send, ShieldCheck, Target, Trash2, Users, X } from '@lucide/vue'
 import { computed, onMounted, ref } from 'vue'
+
+import { locale, setLocale, t, type Locale } from './i18n'
 
 type Role = { code: string; label: string; scope_type: string; scope_id: string }
 type WorkContext = { id: string; name: string; service_name: string; establishment_name: string }
@@ -106,23 +108,27 @@ const isAdmin = computed(() => session.value?.permissions.includes('structure.ma
 const initials = computed(() => (session.value?.user.display_name ?? '').split(' ').map((part) => part[0]).join('').slice(0, 2))
 const currentContext = computed(() => session.value?.contexts[0] ?? null)
 const navigation = computed(() => {
-  const items = [{ id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard }]
-  if (session.value?.permissions.includes('person.search')) items.push({ id: 'people', label: 'Personnes accompagnees', icon: ContactRound })
-  if (session.value?.permissions.includes('personalized_plan.read')) items.push({ id: 'personalized-plans', label: 'Projets personnalises', icon: Target })
-  if (session.value?.permissions.includes('transmission.read')) items.push({ id: 'transmissions', label: 'Transmissions', icon: Send })
-  if (session.value?.permissions.includes('task.read')) items.push({ id: 'work', label: 'Taches et releves', icon: ListChecks })
-  if (session.value?.permissions.includes('schedule.read')) items.push({ id: 'schedule', label: 'Planning', icon: CalendarDays })
-  if (session.value?.permissions.includes('pilotage.read')) items.push({ id: 'pilotage', label: 'Pilotage', icon: BarChart3 })
-  if (session.value?.permissions.includes('notification.read')) items.push({ id: 'notifications', label: 'Notifications', icon: Bell })
-  if (session.value?.permissions.includes('retention.read')) items.push({ id: 'operations', label: 'Conservation et exports', icon: Download })
-  if (session.value?.permissions.includes('integration.read')) items.push({ id: 'integrations', label: 'Integrations locales', icon: Plug })
-  if (session.value?.permissions.includes('pilot.read')) items.push({ id: 'readiness', label: 'Preparation pilote', icon: ClipboardCheck })
-  if (session.value?.permissions.includes('acceptance.read')) items.push({ id: 'acceptance', label: 'Recette metier', icon: CheckCircle2 })
-  if (session.value?.permissions.includes('pilot_issue.read')) items.push({ id: 'pilot-issues', label: 'Anomalies pilote', icon: CircleAlert })
-  if (isAdmin.value) items.push({ id: 'users', label: 'Équipe et accès', icon: Users }, { id: 'structure', label: 'Structure', icon: Building2 }, { id: 'audit', label: 'Journal d’audit', icon: FileClock })
-  items.push({ id: 'access', label: 'Mon accès', icon: ShieldCheck })
+  const items = [{ id: 'dashboard', label: t('dashboard'), icon: LayoutDashboard }]
+  if (session.value?.permissions.includes('person.search')) items.push({ id: 'people', label: t('people'), icon: ContactRound })
+  if (session.value?.permissions.includes('personalized_plan.read')) items.push({ id: 'personalized-plans', label: t('plans'), icon: Target })
+  if (session.value?.permissions.includes('transmission.read')) items.push({ id: 'transmissions', label: t('transmissions'), icon: Send })
+  if (session.value?.permissions.includes('task.read')) items.push({ id: 'work', label: t('work'), icon: ListChecks })
+  if (session.value?.permissions.includes('schedule.read')) items.push({ id: 'schedule', label: t('schedule'), icon: CalendarDays })
+  if (session.value?.permissions.includes('pilotage.read')) items.push({ id: 'pilotage', label: t('pilotage'), icon: BarChart3 })
+  if (session.value?.permissions.includes('notification.read')) items.push({ id: 'notifications', label: t('notifications'), icon: Bell })
+  if (session.value?.permissions.includes('retention.read')) items.push({ id: 'operations', label: t('operations'), icon: Download })
+  if (session.value?.permissions.includes('integration.read')) items.push({ id: 'integrations', label: t('integrations'), icon: Plug })
+  if (session.value?.permissions.includes('pilot.read')) items.push({ id: 'readiness', label: t('readiness'), icon: ClipboardCheck })
+  if (session.value?.permissions.includes('acceptance.read')) items.push({ id: 'acceptance', label: t('acceptance'), icon: CheckCircle2 })
+  if (session.value?.permissions.includes('pilot_issue.read')) items.push({ id: 'pilot-issues', label: t('issues'), icon: CircleAlert })
+  if (isAdmin.value) items.push({ id: 'users', label: t('team'), icon: Users }, { id: 'structure', label: t('structure'), icon: Building2 }, { id: 'audit', label: t('audit'), icon: FileClock })
+  items.push({ id: 'access', label: t('access'), icon: ShieldCheck })
   return items
 })
+
+function updateLocale(event: Event) {
+  setLocale((event.target as HTMLSelectElement).value as Locale)
+}
 
 async function api<T>(url: string, options: RequestInit = {}): Promise<T> {
   const jsonBody = options.body && !(options.body instanceof FormData)
@@ -549,7 +555,7 @@ onMounted(async () => {
     <Activity
       :size="24"
       class="spin"
-    /><span>Ouverture de Transmissions…</span>
+    /><span>{{ t('loading') }}</span>
   </div>
   <main
     v-else-if="!session"
@@ -566,23 +572,33 @@ onMounted(async () => {
         Transmissions
       </p>
       <h1 id="login-title">
-        Bienvenue
+        {{ t('welcome') }}
       </h1><p class="login-intro">
-        Connectez-vous pour accéder à votre espace de travail et à votre périmètre autorisé.
+        {{ t('loginIntro') }}
       </p>
       <a
         class="primary-button login-button"
         href="/auth/login"
-      ><ShieldCheck :size="18" />Se connecter avec Keycloak</a>
+      ><ShieldCheck :size="18" />{{ t('login') }}</a>
+      <label class="language-select login-language">
+        <Languages :size="17" /><span>{{ t('language') }}</span>
+        <select
+          :value="locale"
+          @change="updateLocale"
+        >
+          <option value="fr">{{ t('french') }}</option>
+          <option value="en">{{ t('english') }}</option>
+        </select>
+      </label>
       <div class="demo-access">
-        <p>Comptes de démonstration locale</p><dl><div><dt>Administrateur</dt><dd>admin / Admin-Local-2026!</dd></div><div><dt>Chef de service</dt><dd>chefservice / Chef-Local-2026!</dd></div><div><dt>Professionnel</dt><dd>professionnel / Pro-Local-2026!</dd></div></dl>
+        <p>{{ t('demoAccounts') }}</p><dl><div><dt>Administrateur</dt><dd>admin / Admin-Local-2026!</dd></div><div><dt>Chef de service</dt><dd>chefservice / Chef-Local-2026!</dd></div><div><dt>Professionnel</dt><dd>professionnel / Pro-Local-2026!</dd></div></dl>
       </div>
     </section>
     <aside
       class="login-context"
-      aria-label="Contexte de l’application"
+      :aria-label="t('workContext')"
     >
-      <div><span class="status-dot" />Environnement local sécurisé</div><h2>Une information utile, au bon professionnel.</h2><p>Les accès sont limités par rôle, établissement, service et unité.</p>
+      <div><span class="status-dot" />{{ t('secureEnvironment') }}</div><h2>{{ t('loginPromise') }}</h2><p>{{ t('loginScope') }}</p>
     </aside>
   </main>
 
@@ -597,7 +613,7 @@ onMounted(async () => {
       <div class="sidebar-brand">
         <ClipboardCheck :size="22" /><span>Transmissions</span>
       </div>
-      <nav aria-label="Navigation principale">
+      <nav :aria-label="t('navigation')">
         <button
           v-for="item in navigation"
           :key="item.id"
@@ -622,7 +638,7 @@ onMounted(async () => {
           <strong>{{ session.user.display_name }}</strong><span>{{ session.roles[0]?.label }}</span>
         </div><button
           class="icon-button"
-          title="Se déconnecter"
+          :title="t('logout')"
           @click="logout"
         >
           <LogOut :size="18" />
@@ -633,7 +649,7 @@ onMounted(async () => {
       <header class="topbar">
         <button
           class="icon-button menu-button"
-          title="Ouvrir le menu"
+          :title="t('openMenu')"
           @click="mobileNavOpen = !mobileNavOpen"
         >
           <X
@@ -647,12 +663,12 @@ onMounted(async () => {
           v-if="currentContext"
           class="context-switcher"
         >
-          <span><small>Contexte de travail</small>{{ currentContext.establishment_name }} · {{ currentContext.name }}</span>
+          <span><small>{{ t('workContext') }}</small>{{ currentContext.establishment_name }} · {{ currentContext.name }}</span>
         </div><span
           v-else
           class="admin-context"
-        >Administration de l’organisation</span><div class="topbar-status">
-          <span class="status-dot" />Session active
+        >{{ t('organizationAdmin') }}</span><div class="topbar-status">
+          <span class="status-dot" />{{ t('activeSession') }}
         </div>
       </header>
       <main
@@ -674,9 +690,9 @@ onMounted(async () => {
           <div class="page-heading">
             <div>
               <p class="eyebrow">
-                Espace de travail
+                {{ t('workspace') }}
               </p><h1 id="dashboard-title">
-                Bonjour {{ session.user.display_name.split(' ')[0] }}
+                {{ t('hello') }} {{ session.user.display_name.split(' ')[0] }}
               </h1>
             </div><span class="role-chip">{{ session.roles[0]?.label }}</span>
           </div>
@@ -2393,13 +2409,29 @@ onMounted(async () => {
           <div class="page-heading">
             <div>
               <p class="eyebrow">
-                Sécurité
+                {{ t('security') }}
               </p><h1 id="access-title">
-                Mon accès
+                {{ t('access') }}
               </h1>
             </div>
           </div><dl class="access-details">
-            <div><dt>Compte</dt><dd>{{ session.user.display_name }} · {{ session.user.email }}</dd></div><div><dt>Rôle actif</dt><dd>{{ session.roles.map((role) => role.label).join(', ') }}</dd></div><div><dt>Périmètre</dt><dd>{{ currentContext ? `${currentContext.establishment_name} · ${currentContext.service_name} · ${currentContext.name}` : 'Organisation entière' }}</dd></div><div><dt>Session</dt><dd><span class="status-dot" />Authentifiée par Keycloak</dd></div>
+            <div><dt>{{ t('account') }}</dt><dd>{{ session.user.display_name }} · {{ session.user.email }}</dd></div><div><dt>{{ t('activeRole') }}</dt><dd>{{ session.roles.map((role) => role.label).join(', ') }}</dd></div><div><dt>{{ t('scope') }}</dt><dd>{{ currentContext ? `${currentContext.establishment_name} · ${currentContext.service_name} · ${currentContext.name}` : t('wholeOrganization') }}</dd></div><div><dt>{{ t('session') }}</dt><dd><span class="status-dot" />{{ t('keycloakSession') }}</dd></div>
+            <div>
+              <dt>{{ t('language') }}</dt>
+              <dd class="language-preference">
+                <label class="language-select">
+                  <Languages :size="17" />
+                  <select
+                    :value="locale"
+                    @change="updateLocale"
+                  >
+                    <option value="fr">{{ t('french') }}</option>
+                    <option value="en">{{ t('english') }}</option>
+                  </select>
+                </label>
+                <small>{{ t('languageHelp') }}</small>
+              </dd>
+            </div>
           </dl>
         </section>
       </main>
