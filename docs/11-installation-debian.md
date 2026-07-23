@@ -47,9 +47,17 @@ Le fichier `/var/lib/transmy/transmy-local-ca.crt` doit être transféré et ins
 sur les postes autorisés à accéder au banc de test. Ne jamais diffuser cette autorité ni sa clé.
 
 Les identifiants initiaux sont écrits dans
-`/var/lib/transmy/initial-credentials.txt`, accessible uniquement à `root`. Après changement des
-mots de passe et conservation dans le gestionnaire de secrets retenu par l'organisme, supprimer
-ce fichier avec la commande indiquée dans son contenu.
+`/var/lib/transmy/initial-credentials.txt`, accessible uniquement à `root` :
+
+```text
+sudo cat /var/lib/transmy/initial-credentials.txt
+```
+
+Utiliser les comptes `admin`, `chefservice` ou `professionnel` avec les mots de passe temporaires
+affichés dans ce fichier. Les mots de passe fixes documentés pour Docker Compose sont réservés au
+développement et ne fonctionnent pas avec le paquet Debian. Après la première connexion, changer
+les mots de passe, les conserver dans le gestionnaire de secrets retenu par l'organisme, puis
+supprimer le fichier avec la commande indiquée dans son contenu.
 
 L'installation non interactive est disponible pour l'automatisation :
 

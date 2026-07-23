@@ -114,15 +114,19 @@ docker compose up --build -d --wait
 Open **[https://localhost](https://localhost)**. The certificate generated locally by Caddy
 should only be trusted for this development environment.
 
-### Demonstration Accounts
+### Initial Accounts
 
-| Profile | Username | Password |
-| --- | --- | --- |
-| Administrator | `admin` | `Admin-Local-2026!` |
-| Service manager | `chefservice` | `Chef-Local-2026!` |
-| Professional | `professionnel` | `Pro-Local-2026!` |
+The Debian installer generates unique temporary passwords. After `transmy setup`, read them
+locally as `root`:
 
-These accounts and all bundled data are fictional. **Never use them in production.**
+```bash
+sudo cat /var/lib/transmy/initial-credentials.txt
+```
+
+Sign in with `admin`, `chefservice`, or `professionnel`, change each temporary password on first
+login, store the new credentials in the organization's secret manager, then securely delete the
+file using the command printed inside it. See the
+[Debian installation guide](docs/11-installation-debian.md) for the complete procedure.
 
 ## Quality Checks
 
