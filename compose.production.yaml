@@ -1,7 +1,7 @@
 services:
   caddy:
     volumes:
-      - ./infrastructure/caddy/Caddyfile.production:/etc/caddy/Caddyfile:ro
+      - ${CADDY_CONFIG_FILE:-./infrastructure/caddy/Caddyfile.production}:/etc/caddy/Caddyfile:ro
     environment:
       APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN for production}
       ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL for production}

@@ -29,7 +29,7 @@ Section: admin
 Priority: optional
 Architecture: $ARCHITECTURE
 Maintainer: Transmy contributors
-Depends: ca-certificates, curl, docker.io, docker-compose, openssl, python3
+Depends: ca-certificates, curl, openssl, python3, docker-ce | docker.io, docker-compose-plugin | docker-compose
 Homepage: https://github.com/transmy-spec/transmy
 Description: Self-hosted coordination platform for social care teams
  Transmy deploys the Transmissions application with Docker Compose and provides

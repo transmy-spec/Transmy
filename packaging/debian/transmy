@@ -39,6 +39,17 @@ validate_domain() {
   printf '%s' "$1" | grep -q '\.' || die "a fully qualified public domain is required"
 }
 
+validate_ipv4() {
+  python3 - "$1" <<'PY'
+import ipaddress
+import sys
+
+address = ipaddress.ip_address(sys.argv[1])
+if address.version != 4 or not address.is_private:
+    raise SystemExit(1)
+PY
+}
+
 validate_email() {
   printf '%s' "$1" | grep -Eq '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$' ||
     die "invalid email address: $1"
@@ -48,6 +59,7 @@ write_configuration() {
   domain=$1
   email=$2
   language=$3
+  tls_mode=$4
   oidc_secret=$(random_secret)
   admin_password=$(random_secret)
   manager_password=$(random_secret)
@@ -79,6 +91,8 @@ BACKUP_MAX_AGE_HOURS=26
 RESTORE_MAX_AGE_HOURS=744
 INTEGRATION_ALLOWED_HOSTS=host.docker.internal
 KEYCLOAK_REALM_FILE=$REALM_FILE
+TRANSMY_TLS_MODE=$tls_mode
+CADDY_CONFIG_FILE=$APP_DIR/infrastructure/caddy/Caddyfile.$tls_mode
 EOF
 
   python3 "$APP_DIR/packaging/debian/configure-realm.py" \
@@ -111,15 +125,26 @@ setup() {
   command -v openssl >/dev/null 2>&1 || die "OpenSSL is not installed"
   command -v python3 >/dev/null 2>&1 || die "Python 3 is not installed"
 
-  domain=${TRANSMY_DOMAIN:-$(prompt_value "Public domain" "transmissions.example.org")}
-  email=${TRANSMY_ACME_EMAIL:-$(prompt_value "ACME email" "admin@$domain")}
+  mode=${TRANSMY_MODE:-$(prompt_value "Installation mode (public/local)" "local")}
+  [ "$mode" = public ] || [ "$mode" = local ] ||
+    die "installation mode must be 'public' or 'local'"
+  if [ "$mode" = local ]; then
+    domain=${TRANSMY_DOMAIN:-$(prompt_value "Private IPv4 address" "192.168.1.51")}
+    validate_ipv4 "$domain" || die "a private IPv4 address is required for local mode"
+    email=${TRANSMY_ACME_EMAIL:-local-admin@transmy.invalid}
+    tls_mode=local
+  else
+    domain=${TRANSMY_DOMAIN:-$(prompt_value "Public domain" "transmissions.example.org")}
+    email=${TRANSMY_ACME_EMAIL:-$(prompt_value "ACME email" "admin@$domain")}
+    validate_domain "$domain"
+    validate_email "$email"
+    tls_mode=production
+  fi
   language=${TRANSMY_LANGUAGE:-$(prompt_value "Default language (fr/en)" "fr")}
-  validate_domain "$domain"
-  validate_email "$email"
   [ "$language" = fr ] || [ "$language" = en ] || die "language must be 'fr' or 'en'"
 
   say "Generating installation-specific secrets and Keycloak realm..."
-  write_configuration "$domain" "$email" "$language"
+  write_configuration "$domain" "$email" "$language" "$tls_mode"
   say "Building production images. This can take several minutes..."
   compose config --quiet
   compose build
@@ -129,6 +154,9 @@ setup() {
   say ""
   say "Transmy is available at https://$domain"
   say "Initial credentials: $STATE_DIR/initial-credentials.txt"
+  if [ "$mode" = local ]; then
+    say "Export the local CA with: transmy certificate"
+  fi
   say "This installation is suitable for evaluation with fictional data only."
 }
 
@@ -160,7 +188,13 @@ doctor() {
     compose config --quiet || failures=1
     compose ps
     domain=$(sed -n 's/^APP_DOMAIN=//p' "$ENV_FILE")
-    curl -fsS "https://$domain/api/v1/health/live" >/dev/null 2>&1 ||
+    curl_options=--fail
+    if grep -q '^TRANSMY_TLS_MODE=local$' "$ENV_FILE"; then
+      curl_options="$curl_options --insecure"
+    fi
+    # shellcheck disable=SC2086
+    curl $curl_options --silent --show-error \
+      "https://$domain/api/v1/health/live" >/dev/null 2>&1 ||
       { say "FAIL public health endpoint"; failures=1; }
   fi
   [ "$failures" -eq 0 ] || die "diagnostic failed"
@@ -177,6 +211,18 @@ restore_test() {
   require_root
   [ -f "$ENV_FILE" ] || die "Transmy is not configured"
   compose --profile operations run --rm restore-test
+}
+
+certificate() {
+  require_root
+  [ -f "$ENV_FILE" ] || die "Transmy is not configured"
+  grep -q '^TRANSMY_TLS_MODE=local$' "$ENV_FILE" ||
+    die "the local CA is only available for local installations"
+  output=$STATE_DIR/transmy-local-ca.crt
+  compose exec -T caddy cat /data/caddy/pki/authorities/local/root.crt >"$output"
+  chmod 0644 "$output"
+  say "Local CA exported to $output"
+  say "Install this certificate only on devices that must access this test instance."
 }
 
 upgrade() {
@@ -208,6 +254,7 @@ Commands:
   doctor         Validate configuration and public health
   backup         Create an encrypted backup
   restore-test   Test the latest encrypted backup
+  certificate    Export the local HTTPS CA certificate
   upgrade        Backup, rebuild, migrate and validate
   logs [SERVICE] Show recent technical logs
 EOF
@@ -223,6 +270,7 @@ case "$command" in
   doctor) doctor "$@" ;;
   backup) backup "$@" ;;
   restore-test) restore_test "$@" ;;
+  certificate) certificate "$@" ;;
   upgrade) upgrade "$@" ;;
   logs) logs "$@" ;;
   help|-h|--help) usage ;;

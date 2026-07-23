@@ -27,7 +27,7 @@ sudo apt install ./dist/transmy_0.24.0_all.deb
 sudo transmy setup
 ```
 
-L'assistant demande le domaine public, l'adresse ACME et la langue initiale. Il :
+L'assistant demande le mode public ou local, l'adresse ou le domaine et la langue initiale. Il :
 
 - génère des secrets différents avec OpenSSL ;
 - écrit `/etc/transmy/transmy.env` en mode `0600` ;
@@ -35,6 +35,16 @@ L'assistant demande le domaine public, l'adresse ACME et la langue initiale. Il 
 - remplace les mots de passe connus par des valeurs aléatoires temporaires ;
 - construit et démarre les images de production ;
 - active le service et la sauvegarde quotidienne.
+
+En mode local, saisir l'adresse IPv4 privée stable de la VM. Caddy génère une autorité de
+certification locale. Son certificat racine peut être exporté après le démarrage :
+
+```text
+sudo transmy certificate
+```
+
+Le fichier `/var/lib/transmy/transmy-local-ca.crt` doit être transféré et installé uniquement
+sur les postes autorisés à accéder au banc de test. Ne jamais diffuser cette autorité ni sa clé.
 
 Les identifiants initiaux sont écrits dans
 `/var/lib/transmy/initial-credentials.txt`, accessible uniquement à `root`. Après changement des
@@ -45,7 +55,17 @@ L'installation non interactive est disponible pour l'automatisation :
 
 ```text
 sudo TRANSMY_DOMAIN=transmissions.example.org \
+  TRANSMY_MODE=public \
   TRANSMY_ACME_EMAIL=admin@example.org \
+  TRANSMY_LANGUAGE=fr \
+  transmy setup
+```
+
+Exemple local :
+
+```text
+sudo TRANSMY_MODE=local \
+  TRANSMY_DOMAIN=192.168.1.51 \
   TRANSMY_LANGUAGE=fr \
   transmy setup
 ```
