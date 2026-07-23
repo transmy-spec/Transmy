@@ -1,5 +1,6 @@
 {
   admin off
+  default_sni {$APP_DOMAIN}
 }
 
 https://{$APP_DOMAIN} {

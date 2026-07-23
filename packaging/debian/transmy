@@ -194,9 +194,19 @@ doctor() {
     if grep -q '^TRANSMY_TLS_MODE=local$' "$ENV_FILE"; then
       curl_options="$curl_options --insecure"
     fi
-    # shellcheck disable=SC2086
-    curl $curl_options --silent --show-error \
-      "https://$domain/api/v1/health/live" >/dev/null 2>&1 ||
+    public_health_ok=0
+    public_health_attempt=1
+    while [ "$public_health_attempt" -le 6 ]; do
+      # shellcheck disable=SC2086
+      if curl $curl_options --silent --show-error \
+        "https://$domain/api/v1/health/live" >/dev/null 2>&1; then
+        public_health_ok=1
+        break
+      fi
+      public_health_attempt=$((public_health_attempt + 1))
+      sleep 5
+    done
+    [ "$public_health_ok" -eq 1 ] ||
       { say "FAIL public health endpoint"; failures=1; }
   fi
   [ "$failures" -eq 0 ] || die "diagnostic failed"
