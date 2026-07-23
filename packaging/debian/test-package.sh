@@ -7,13 +7,15 @@ PACKAGE=${1:-"$REPOSITORY_ROOT/dist/transmy_0.24.0_all.deb"}
 
 test -f "$PACKAGE"
 dpkg-deb --info "$PACKAGE"
-dpkg-deb --contents "$PACKAGE" | grep -q './usr/bin/transmy'
-dpkg-deb --contents "$PACKAGE" | grep -q './usr/lib/systemd/system/transmy.service'
-dpkg-deb --contents "$PACKAGE" | grep -q './usr/lib/transmy/compose.production.yaml'
 
 EXTRACTED=$(mktemp -d)
 cleanup() { rm -rf "$EXTRACTED"; }
 trap cleanup EXIT INT TERM
+CONTENTS=$EXTRACTED/package-contents.txt
+dpkg-deb --contents "$PACKAGE" >"$CONTENTS"
+grep -q './usr/bin/transmy' "$CONTENTS"
+grep -q './usr/lib/systemd/system/transmy.service' "$CONTENTS"
+grep -q './usr/lib/transmy/compose.production.yaml' "$CONTENTS"
 dpkg-deb --extract "$PACKAGE" "$EXTRACTED"
 
 TRANSMY_APP_DIR="$EXTRACTED/usr/lib/transmy" \
