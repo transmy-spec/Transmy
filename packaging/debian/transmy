@@ -115,7 +115,9 @@ Password: $professional_password
 Change these passwords at first login. Delete this file afterwards:
   shred -u $STATE_DIR/initial-credentials.txt
 EOF
-  chmod 0600 "$ENV_FILE" "$REALM_FILE" "$STATE_DIR/initial-credentials.txt"
+  chmod 0600 "$ENV_FILE" "$STATE_DIR/initial-credentials.txt"
+  chown 1000:0 "$REALM_FILE"
+  chmod 0400 "$REALM_FILE"
 }
 
 setup() {

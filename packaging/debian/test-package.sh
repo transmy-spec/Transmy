@@ -21,7 +21,7 @@ dpkg-deb --extract "$PACKAGE" "$EXTRACTED"
 TRANSMY_APP_DIR="$EXTRACTED/usr/lib/transmy" \
 TRANSMY_CONFIG_DIR="$EXTRACTED/etc/transmy" \
 TRANSMY_STATE_DIR="$EXTRACTED/var/lib/transmy" \
-  "$EXTRACTED/usr/bin/transmy" help | grep -q 'transmy setup'
+  "$EXTRACTED/usr/bin/transmy" help | grep -q 'Usage: transmy COMMAND'
 
 python3 "$EXTRACTED/usr/lib/transmy/packaging/debian/configure-realm.py" \
   "$EXTRACTED/usr/lib/transmy/infrastructure/keycloak/transmissions-realm.json" \
