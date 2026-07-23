@@ -1,103 +1,114 @@
+<p align="right">
+  <img src="https://flagcdn.com/w40/fr.png" width="32" alt="Flag of France">
+</p>
+
 # Transmissions
 
-**Une application open source, auto-hébergeable et sécurisée pour les équipes du secteur social et médico-social.**
+**A secure, open-source and self-hostable coordination platform for social care and
+medico-social teams. Designed in France.**
 
-[![Licence AGPL-3.0](https://img.shields.io/badge/licence-AGPL--3.0-176b52.svg)](LICENSE)
+[![License AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-176b52.svg)](LICENSE)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
 ![Vue.js](https://img.shields.io/badge/Vue.js-3-42B883?logo=vuedotjs&logoColor=white)
-![Keycloak](https://img.shields.io/badge/identité-Keycloak-4D4D4D)
+![Keycloak](https://img.shields.io/badge/identity-Keycloak-4D4D4D)
+![Made with GPT-5.6 Sol](https://img.shields.io/badge/made%20with-GPT--5.6%20Sol-000000?logo=openai&logoColor=white)
 
-Transmissions rassemble dans un même espace les informations utiles à l'accompagnement :
-transmissions ciblées, tâches, relèves, plannings d'équipe et des personnes accompagnées,
-projets personnalisés, notifications et pilotage. Les droits sont contrôlés côté serveur selon
-le rôle et le périmètre organisationnel de chaque professionnel.
+Transmissions brings essential care information into one workspace: targeted handover notes,
+tasks, shift handovers, staff and supported-person schedules, personalized support plans,
+notifications and operational indicators. Permissions are enforced by the backend according to
+each professional's role and organizational scope.
+
+The project was designed in France for the needs of French social and medico-social
+organizations, with particular attention to the principles of the French Act of 2 January 2002
+on social and medico-social services and to personalized support planning.
 
 > [!IMPORTANT]
-> Le dépôt fournit un socle technique et fonctionnel. Son déploiement avec des données réelles
-> nécessite une validation par l'organisme responsable : AIPD, politique de conservation,
-> hébergement approprié, procédures d'exploitation, gestion des risques et recette métier.
+> This repository provides a technical and functional foundation. Deployment with real data
+> requires validation by the responsible organization, including a DPIA, retention policy,
+> suitable hosting, operating procedures, risk management and business acceptance testing.
+> This project does not constitute legal advice or security certification.
 
-## Fonctionnalités
+## Features
 
-| Domaine | Ce que l'application permet |
+| Area | Capabilities |
 | --- | --- |
-| Identité et accès | Authentification Keycloak, sessions individuelles, rôles administrateur, chef de service et professionnel, rattachements par unité |
-| Personnes accompagnées | Dossiers synthétiques limités au périmètre autorisé, création réservée au chef de service et à l'administrateur, archivage traçable |
-| Transmissions | Brouillons, publication versionnée, niveaux d'importance, pièces jointes analysées, confirmation de lecture hors auteur |
-| Tâches et relèves | Attribution, échéances, priorités, suivi d'avancement et préparation des relèves |
-| Planning partagé | Calendriers distincts des professionnels et des personnes accompagnées, horaires, congés, événements, invitations et sorties de groupe |
-| Projet personnalisé | Attentes, besoins, objectifs, consentement, versions, revues et liens avec les accompagnements planifiés |
-| Pilotage | Indicateurs d'activité, alertes, suivi de charge, préparation et anomalies du pilote |
-| Exploitation | Exports audités, politiques de conservation, sauvegardes chiffrées, exercice de restauration et contrôles de production |
-| Interface | Responsive, imprimable, accessible, préférence Français/English pour la navigation et les éléments permanents |
+| Identity and access | Keycloak authentication, individual sessions, administrator, service manager and professional roles, unit-based assignments |
+| Supported people | Scope-restricted records, creation limited to service managers and administrators, traceable archiving |
+| Handover notes | Drafts, versioned publishing, importance levels, scanned attachments and read confirmation for users other than the author |
+| Tasks and shift handovers | Assignment, deadlines, priorities, progress tracking and prepared handover summaries |
+| Shared schedules | Separate calendars for professionals and supported people, working hours, leave, events, invitations and group outings |
+| Personalized support plans | Expectations, needs, goals, consent, versions, reviews and links to scheduled support activities |
+| Oversight | Activity indicators, alerts, workload monitoring, pilot readiness and pilot issue tracking |
+| Operations | Audited exports, retention policies, encrypted backups, restore exercises and production checks |
+| Interface | Responsive, printable and accessible UI, with a French/English preference for navigation and permanent interface elements |
 
-## Aperçu technique
+## Architecture
 
 ```mermaid
 flowchart LR
-    U[Professionnel] -->|HTTPS| C[Caddy]
+    U[Professional] -->|HTTPS| C[Caddy]
     C --> F[Vue.js]
-    C --> A[API FastAPI]
+    C --> A[FastAPI API]
     C --> K[Keycloak]
-    A --> P[(PostgreSQL applicatif)]
+    A --> P[(Application PostgreSQL)]
     A --> V[ClamAV]
-    K --> I[(PostgreSQL identité)]
+    K --> I[(Identity PostgreSQL)]
 ```
 
-- **Frontend :** Vue 3, TypeScript et Vite
-- **Backend :** FastAPI, SQLAlchemy et Alembic sur Python 3.13
-- **Identité :** Keycloak avec flux OIDC et sessions BFF
-- **Données :** PostgreSQL, champs sensibles chiffrés au niveau applicatif
-- **Fichiers :** contrôle antivirus ClamAV avant utilisation
-- **Entrée HTTPS :** Caddy, certificats locaux en développement et ACME en production
-- **Déploiement :** Docker Compose, images de développement et de production séparées
+- **Frontend:** Vue 3, TypeScript and Vite
+- **Backend:** FastAPI, SQLAlchemy and Alembic on Python 3.13
+- **Identity:** Keycloak with OIDC and BFF sessions
+- **Data:** PostgreSQL with application-level encryption for sensitive fields
+- **Files:** ClamAV scanning before attachments are made available
+- **HTTPS entry point:** Caddy with local development certificates and ACME in production
+- **Deployment:** Docker Compose with separate development and production images
 
-## Démarrage rapide
+## Quick Start
 
-### Prérequis
+### Requirements
 
-- Docker Desktop, ou Docker Engine avec Docker Compose v2 ;
+- Docker Desktop, or Docker Engine with Docker Compose v2;
 - Git.
 
-### Installation locale
+### Local Installation
 
-Après avoir cloné le dépôt, placez-vous dans son dossier puis préparez la configuration :
+After cloning the repository, open its directory and prepare the local configuration:
 
 ```bash
 cp .env.example .env
 ```
 
-Remplacez ensuite chaque valeur `CHANGE_ME` dans `.env` par un secret local long et aléatoire.
-Vous pouvez également définir la langue initiale de l'interface :
+Replace every `CHANGE_ME` value in `.env` with a long, random local secret. The initial
+interface language can also be selected during installation:
 
 ```dotenv
 VITE_DEFAULT_LOCALE=fr
 ```
 
-Lancez l'environnement :
+Start the environment:
 
 ```bash
 docker compose config
 docker compose up --build -d --wait
 ```
 
-Ouvrez **[https://localhost](https://localhost)**. Le certificat généré localement par Caddy
-doit être accepté uniquement pour cet environnement de développement.
+Open **[https://localhost](https://localhost)**. The certificate generated locally by Caddy
+should only be trusted for this development environment.
 
-### Comptes de démonstration
+### Demonstration Accounts
 
-| Profil | Identifiant | Mot de passe |
+| Profile | Username | Password |
 | --- | --- | --- |
-| Administrateur | `admin` | `Admin-Local-2026!` |
-| Chef de service | `chefservice` | `Chef-Local-2026!` |
-| Professionnel | `professionnel` | `Pro-Local-2026!` |
+| Administrator | `admin` | `Admin-Local-2026!` |
+| Service manager | `chefservice` | `Chef-Local-2026!` |
+| Professional | `professionnel` | `Pro-Local-2026!` |
 
-Ces comptes et toutes les données fournies sont fictifs. **Ne les utilisez jamais en production.**
+These accounts and all bundled data are fictional. **Never use them in production.**
 
-## Vérifications
+## Quality Checks
 
-Le projet dispose de contrôles backend, frontend, sécurité et charge :
+The project includes backend, frontend, security and load checks:
 
 ```bash
 # Backend
@@ -110,32 +121,31 @@ docker compose run --rm frontend npm run lint
 docker compose run --rm frontend npm run test:run
 docker compose run --rm frontend npm run build
 
-# Contrôles HTTP et test de charge local
+# Local HTTP security checks and pilot load test
 docker compose --profile validation run --rm security-audit
 docker compose --profile validation run --rm load-test
 ```
 
-État de référence actuel : **72 tests backend**, **3 tests frontend**, couverture backend
-supérieure à **90 %**, audit HTTP réussi et test de charge pilote sans requête en échec.
+Current reference baseline: **72 backend tests**, **3 frontend tests**, more than **90% backend
+coverage**, a successful HTTP security audit and a pilot load test with no failed request.
 
-## Sauvegarde et restauration
+## Backup and Restore
 
-Les sauvegardes couvrent les bases applicative et Keycloak. Elles sont chiffrées avant leur
-stockage dans le volume Docker dédié.
+Backups cover both the application and Keycloak databases. Archives are encrypted before being
+stored in their dedicated Docker volume.
 
 ```bash
 docker compose --profile operations run --rm backup
 docker compose --profile operations run --rm restore-test
 ```
 
-Une archive ne doit être considérée comme exploitable qu'après un exercice de restauration
-réussi. La procédure détaillée se trouve dans
-[Exploitation en production](docs/10-exploitation-production.md).
+A backup should only be considered usable after a successful restore exercise. The detailed
+procedure is available in [Production Operations](docs/10-exploitation-production.md).
 
 ## Production
 
-Le fichier `compose.production.yaml` active les images minimales, les systèmes de fichiers en
-lecture seule, la réduction des capacités Linux et la configuration HTTPS de production.
+`compose.production.yaml` enables minimal images, read-only filesystems, reduced Linux
+capabilities and the production HTTPS configuration.
 
 ```bash
 docker compose \
@@ -144,45 +154,48 @@ docker compose \
   config
 ```
 
-Avant tout déploiement réel, consultez la
-[procédure d'exploitation](docs/10-exploitation-production.md) et le
-[modèle de menaces](docs/05-modele-de-menaces.md).
+Before any real-world deployment, review the
+[operations guide](docs/10-exploitation-production.md) and the
+[threat model](docs/05-modele-de-menaces.md).
 
-## Sécurité et confidentialité
+## Security and Privacy
 
-- aucune télémétrie ni dépendance cloud obligatoire ;
-- autorisations vérifiées par l'API, indépendamment de l'affichage frontend ;
-- séparation des réseaux publics, applicatifs et d'identité ;
-- chiffrement des champs sensibles et des sauvegardes ;
-- journalisation des opérations sensibles ;
-- protection CSRF, cookies de session sécurisés et validation de l'origine ;
-- aucune donnée réelle, sauvegarde, export ou secret ne doit être ajouté au dépôt.
+- no telemetry or mandatory cloud dependency;
+- authorization enforced by the API independently of frontend visibility;
+- separate public, application and identity networks;
+- encryption of sensitive fields and backup archives;
+- audit records for sensitive operations;
+- CSRF protection, secure session cookies and origin validation;
+- no real data, backup, export or secret should ever be committed to this repository.
 
-Une vulnérabilité ne doit pas être publiée dans une issue publique. Suivez la procédure décrite
-dans [SECURITY.md](SECURITY.md).
+Do not disclose a vulnerability in a public issue. Follow the process described in
+[SECURITY.md](SECURITY.md).
 
 ## Documentation
 
-| Document | Contenu |
+The detailed project documentation is currently maintained in French, reflecting its initial
+deployment context.
+
+| Document | Scope |
 | --- | --- |
-| [Utilisateurs et parcours](docs/01-utilisateurs-et-parcours.md) | Profils, besoins et parcours principaux |
-| [Exigences](docs/02-exigences.md) | Exigences fonctionnelles et non fonctionnelles |
-| [Modèle de données](docs/03-modele-de-donnees.md) | Entités et règles de gestion |
-| [Architecture](docs/04-architecture.md) | Architecture applicative et infrastructure |
-| [Modèle de menaces](docs/05-modele-de-menaces.md) | Menaces, mesures et risques résiduels |
-| [Préparation du pilote](docs/07-preparation-pilote.md) | Conditions de recette et de mise en service |
-| [Projet personnalisé](docs/09-projet-personnalise.md) | Cadre fonctionnel du projet personnalisé d'accompagnement |
-| [Exploitation](docs/10-exploitation-production.md) | Déploiement, sauvegarde, restauration et incidents |
+| [Users and journeys](docs/01-utilisateurs-et-parcours.md) | User profiles, needs and main workflows |
+| [Requirements](docs/02-exigences.md) | Functional and non-functional requirements |
+| [Data model](docs/03-modele-de-donnees.md) | Entities and business rules |
+| [Architecture](docs/04-architecture.md) | Application and infrastructure architecture |
+| [Threat model](docs/05-modele-de-menaces.md) | Threats, controls and residual risks |
+| [Pilot readiness](docs/07-preparation-pilote.md) | Acceptance and go-live conditions |
+| [Personalized support plan](docs/09-projet-personnalise.md) | Functional framework for personalized support planning |
+| [Operations](docs/10-exploitation-production.md) | Deployment, backup, restore and incident procedures |
 
-L'index complet est disponible dans le dossier [docs](docs/README.md).
+The complete index is available in the [docs](docs/README.md) directory.
 
-## Contribuer
+## Contributing
 
-Les contributions sont les bienvenues. Avant de proposer une modification, consultez
-[CONTRIBUTING.md](CONTRIBUTING.md), ajoutez les tests adaptés et vérifiez qu'aucune donnée
-sensible ni aucun secret n'apparaît dans les changements.
+Contributions are welcome. Before proposing a change, read
+[CONTRIBUTING.md](CONTRIBUTING.md), add appropriate tests and make sure that no sensitive data
+or secret appears in the changes.
 
-## Licence
+## License
 
-Ce projet est distribué sous licence **GNU Affero General Public License v3.0**.
-Consultez [LICENSE](LICENSE) pour le texte complet.
+This project is licensed under the **GNU Affero General Public License v3.0**.
+See [LICENSE](LICENSE) for the full license text.
