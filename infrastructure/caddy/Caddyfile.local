@@ -20,10 +20,21 @@ https://{$APP_DOMAIN} {
   }
 
   handle /api/* {
-    request_body { max_size 2MB }
+    request_body {
+      max_size 2MB
+    }
     reverse_proxy api:8000
   }
-  handle /auth/* { reverse_proxy api:8000 }
-  handle /oidc/* { reverse_proxy keycloak:8080 }
-  handle { reverse_proxy frontend:8080 }
+
+  handle /auth/* {
+    reverse_proxy api:8000
+  }
+
+  handle /oidc/* {
+    reverse_proxy keycloak:8080
+  }
+
+  handle {
+    reverse_proxy frontend:8080
+  }
 }
