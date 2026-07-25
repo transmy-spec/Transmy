@@ -11,8 +11,8 @@ Depuis la racine du dépôt, sur Debian 13 :
 
 ```text
 chmod +x packaging/debian/*.sh packaging/debian/transmy
-packaging/debian/build-package.sh 0.24.0
-packaging/debian/test-package.sh dist/transmy_0.24.0_all.deb
+packaging/debian/build-package.sh '0.27.0~rc1'
+packaging/debian/test-package.sh 'dist/transmy_0.27.0~rc1_all.deb'
 ```
 
 Le paquet est produit dans `dist/`. Il embarque les sources et construit localement les images
@@ -23,16 +23,25 @@ Le workflow GitHub `Debian package` répète cette construction et publie le `.d
 ## Installation
 
 ```text
-sudo apt install ./dist/transmy_0.24.0_all.deb
+sudo apt install './dist/transmy_0.27.0~rc1_all.deb'
 sudo transmy setup
 ```
 
-L'assistant demande le mode public ou local, l'adresse ou le domaine et la langue initiale. Il :
+L'assistant demande le mode public ou local, l'adresse ou le domaine, la langue initiale et le
+profil d'installation :
+
+- `production`, recommandé et sélectionné par défaut, demande le nom de l'association, de
+  l'établissement, du service et de l'unité initiale ;
+- `evaluation` conserve une structure et des personnages entièrement fictifs pour les essais.
+
+Il :
 
 - génère des secrets différents avec OpenSSL ;
 - écrit `/etc/transmy/transmy.env` en mode `0600` ;
 - crée un realm Keycloak lié au domaine ;
-- remplace les mots de passe connus par des valeurs aléatoires temporaires ;
+- ne conserve que le compte administrateur à activer en profil `production` ;
+- remplace les mots de passe des personnages fictifs par des valeurs aléatoires temporaires en
+  profil `evaluation` ;
 - construit et démarre les images de production ;
 - active le service et la sauvegarde quotidienne.
 
@@ -46,18 +55,63 @@ sudo transmy certificate
 Le fichier `/var/lib/transmy/transmy-local-ca.crt` doit être transféré et installé uniquement
 sur les postes autorisés à accéder au banc de test. Ne jamais diffuser cette autorité ni sa clé.
 
-Les identifiants initiaux sont écrits dans
+En profil `production`, aucun compte métier générique et aucun fichier d'identifiants ne sont
+créés. L'administrateur reçoit uniquement le lien local d'activation décrit ci-dessous.
+
+En profil `evaluation` seulement, les identifiants fictifs sont écrits dans
 `/var/lib/transmy/initial-credentials.txt`, accessible uniquement à `root` :
 
 ```text
 sudo cat /var/lib/transmy/initial-credentials.txt
 ```
 
-Utiliser les comptes `admin`, `chefservice` ou `professionnel` avec les mots de passe temporaires
-affichés dans ce fichier. Les mots de passe fixes documentés pour Docker Compose sont réservés au
-développement et ne fonctionnent pas avec le paquet Debian. Après la première connexion, changer
-les mots de passe, les conserver dans le gestionnaire de secrets retenu par l'organisme, puis
-supprimer le fichier avec la commande indiquée dans son contenu.
+Les comptes `chefservice` et `professionnel` ainsi créés ne doivent recevoir que des données
+fictives. Les mots de passe fixes de Docker Compose sont réservés au développement et ne
+fonctionnent pas avec le paquet Debian. Supprimer le fichier après les essais avec la commande
+indiquée dans son contenu.
+
+### Activation de l'administrateur
+
+Une installation neuve n'utilise pas de mot de passe administrateur connu. À la fin de
+`transmy setup`, la console affiche un lien local d'activation valable deux heures. Le jeton est
+placé dans le fragment de l'URL afin de ne pas apparaître dans les journaux HTTP ; seul son
+condensat authentifié est conservé en base. L'administrateur ouvre ce lien depuis le réseau de
+l'association et choisit directement son mot de passe dans Keycloak.
+
+En cas de perte d'accès, une personne disposant des droits `root` sur le serveur peut révoquer les
+liens précédents et produire un nouveau lien à usage unique :
+
+```text
+sudo transmy admin-reset
+```
+
+Cette opération ferme les sessions administrateur existantes et est inscrite dans l'audit. Le
+lien doit être remis en main propre, imprimé ou transmis par un canal interne approuvé. Il ne
+doit pas être envoyé avec d'autres éléments d'authentification dans un même message.
+
+Le compte technique `transmy-bootstrap` appartient au realm maître Keycloak et n'est pas un
+compte Transmy. Son secret reste dans `/etc/transmy/transmy.env`, lisible uniquement par `root`,
+et l'interface d'administration Keycloak n'est pas publiée par le reverse proxy. L'API utilise
+un client de service distinct, limité à la gestion des utilisateurs du realm Transmy.
+
+### Invitation des professionnels
+
+Un administrateur crée un professionnel depuis **Équipe et accès**, puis choisit son rôle et son
+unité principale. Transmy crée la même identité dans Keycloak et dans sa base applicative. Si une
+écriture échoue, l'identité Keycloak créée est supprimée afin d'éviter un compte orphelin.
+
+Le lien d'activation :
+
+- est affiché une seule fois à l'administrateur ;
+- est valable 48 heures et utilisable une seule fois ;
+- place le jeton dans le fragment de l'URL pour ne pas l'inscrire dans les journaux HTTP ;
+- n'est conservé en base que sous forme de condensat authentifié ;
+- peut être imprimé et remis en main propre sur le réseau local ;
+- peut être révoqué ou renouvelé depuis la fiche du professionnel.
+
+À l'ouverture du lien, le professionnel choisit directement son mot de passe dans Keycloak. Le
+compte applicatif reste dans l'état `invited` et ne peut ouvrir aucune session avant la
+consommation du jeton. Les créations, renouvellements, révocations et activations sont audités.
 
 L'installation non interactive est disponible pour l'automatisation :
 
@@ -75,14 +129,23 @@ Exemple local :
 sudo TRANSMY_MODE=local \
   TRANSMY_DOMAIN=192.168.1.51 \
   TRANSMY_LANGUAGE=fr \
+  TRANSMY_PROFILE=production \
+  TRANSMY_ORGANIZATION_NAME="Mon association" \
+  TRANSMY_ESTABLISHMENT_NAME="Etablissement principal" \
+  TRANSMY_SERVICE_NAME="Accompagnement" \
+  TRANSMY_UNIT_NAME="Unite principale" \
   transmy setup
 ```
+
+Pour un banc d'essai explicitement fictif, remplacer uniquement
+`TRANSMY_PROFILE=production` par `TRANSMY_PROFILE=evaluation` et omettre les quatre noms.
 
 ## Administration
 
 ```text
 sudo transmy status
 sudo transmy doctor
+sudo transmy admin-reset
 sudo transmy logs
 sudo transmy backup
 sudo transmy restore-test
@@ -91,6 +154,11 @@ sudo transmy upgrade
 
 `transmy upgrade` crée une sauvegarde, exécute un exercice de restauration, reconstruit les
 images, applique les migrations et contrôle le point de santé public.
+
+Depuis le lot 26, `transmy start` et `transmy upgrade` réconcilient aussi le client technique
+Keycloak utilisé pour les invitations. Une installation existante reçoit automatiquement son
+secret local manquant et les permissions minimales `manage-users` et `view-users`. Aucun compte
+ni mot de passe utilisateur existant n'est réinitialisé.
 
 ## Services systemd
 
@@ -146,8 +214,8 @@ intégrée au script d'installation.
 ### Publier une version
 
 ```text
-git tag -s v0.24.0 -m "Transmy 0.24.0"
-git push origin v0.24.0
+git tag -s v0.27.0 -m "Transmy 0.27.0"
+git push origin v0.27.0
 ```
 
 Le workflow :

@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     )
     oidc_client_id: str = "transmissions-web"
     oidc_client_secret: SecretStr = SecretStr("development-client-secret")
+    keycloak_provisioning_client_id: str = "transmissions-provisioning"
+    keycloak_provisioning_client_secret: SecretStr = SecretStr(
+        "local-provisioning-client-secret-2026"
+    )
     session_secret: SecretStr = SecretStr("development-session-secret")
     field_encryption_key: SecretStr = SecretStr("development-field-encryption-key")
     clamav_host: str = "clamav"

@@ -54,7 +54,7 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           case "$VERSION" in
-            *[!0-9.]*|"") VERSION=0.24.0 ;;
+            *[!0-9.]*|"") VERSION=0.27.0~rc1 ;;
           esac
           sh packaging/debian/build-package.sh "$VERSION"
           sh packaging/debian/test-package.sh "dist/transmy_${VERSION}_all.deb"

@@ -18,7 +18,7 @@ type RetentionPolicy = { data_type: string; retention_days: number | null; legal
 type ExportResult = { id: string; status: string; record_count: number; sha256: string }
 type Notification = { notification_key: string; kind: 'task' | 'transmission'; title: string; detail: string; occurred_at: string; severity: 'normal' | 'important' | 'urgent'; is_read: boolean }
 type Membership = { id: string; unit_id: string; unit_name: string; service_name: string; is_primary: boolean; ends_at: string | null }
-type User = { id: string; username: string; display_name: string; email: string | null; status: 'active' | 'disabled'; roles: string; units: string; memberships?: Membership[] }
+type User = { id: string; username: string; display_name: string; email: string | null; status: 'invited' | 'active' | 'disabled'; roles: string; units: string; memberships?: Membership[] }
 type ScheduleEntry = { id: string; user_id: string; user_name: string; unit_name: string; entry_type: 'shift' | 'absence' | 'event'; starts_at: string; ends_at: string; label: string; participant_names: string[]; person_names: string[]; person_ids: string[]; approval_status: 'pending' | 'approved' | 'rejected'; invitation_status: 'pending' | 'accepted' | 'declined'; recurrence_group_id: string | null; created_by: string; row_version: number }
 type PersonalizedGoal = { id: string; title: string; success_criteria: string; person_feedback: string; status: 'planned' | 'in_progress' | 'achieved' | 'adapted' | 'abandoned'; progress: number; target_date: string | null; row_version: number }
 type ScheduleMember = { id: string; display_name: string }
@@ -35,6 +35,11 @@ type PersonalizedPlan = { id: string; status: 'draft' | 'active' | 'closed'; rev
 const session = ref<Session | null>(null)
 const loading = ref(true)
 const notice = ref('')
+const activationToken = ref('')
+const activationDetails = ref<{ display_name: string; username: string; expires_at: string } | null>(null)
+const activationPassword = ref('')
+const activationConfirmation = ref('')
+const activationComplete = ref(false)
 const activeView = ref('dashboard')
 const mobileNavOpen = ref(false)
 const structure = ref<{ organization: { name: string }; items: StructureRow[] } | null>(null)
@@ -42,6 +47,9 @@ const users = ref<User[]>([])
 const selectedUser = ref<User | null>(null)
 const userReason = ref('')
 const membershipUnit = ref('')
+const invitationMode = ref(false)
+const invitationForm = ref({ username: '', display_name: '', email: '', role_code: 'professional', unit_id: '' })
+const invitationResult = ref<{ activation_url: string; expires_at: string } | null>(null)
 const schedule = ref<ScheduleEntry[]>([])
 const scheduleMembers = ref<ScheduleMember[]>([])
 const schedulePeople = ref<SchedulePerson[]>([])
@@ -138,6 +146,39 @@ async function api<T>(url: string, options: RequestInit = {}): Promise<T> {
 }
 function printPage() { globalThis.print() }
 async function loadSession() { loading.value = true; try { session.value = await api<Session>('/api/v1/session') } catch { session.value = null } finally { loading.value = false } }
+async function loadActivation() {
+  const match = globalThis.location.hash.match(/^#activation=(.+)$/)
+  if (!match) return false
+  activationToken.value = decodeURIComponent(match[1])
+  try {
+    activationDetails.value = await api('/api/v1/account-activation/inspect', {
+      method: 'POST',
+      body: JSON.stringify({ token: activationToken.value }),
+    })
+  } catch {
+    notice.value = 'Ce lien d activation est invalide ou expire.'
+  }
+  return true
+}
+async function completeActivation() {
+  if (activationPassword.value.length < 12 || activationPassword.value !== activationConfirmation.value) return
+  saving.value = true
+  try {
+    await api('/api/v1/account-activation/complete', {
+      method: 'POST',
+      body: JSON.stringify({ token: activationToken.value, password: activationPassword.value }),
+    })
+    activationComplete.value = true
+    activationToken.value = ''
+    globalThis.history.replaceState(null, '', '/')
+  } catch {
+    notice.value = 'Activation impossible. Le lien a peut-etre expire.'
+  } finally {
+    activationPassword.value = ''
+    activationConfirmation.value = ''
+    saving.value = false
+  }
+}
 async function selectView(view: string) {
   activeView.value = view; mobileNavOpen.value = false; notice.value = ''
   try {
@@ -245,6 +286,46 @@ async function openUser(user: User) {
   selectedUser.value = await api<User>(`/api/v1/users/${user.id}`)
   userReason.value = ''
   membershipUnit.value = structure.value?.items.find((item) => item.unit_id)?.unit_id ?? ''
+}
+function openInvitation() {
+  invitationMode.value = true
+  invitationResult.value = null
+  invitationForm.value = {
+    username: '',
+    display_name: '',
+    email: '',
+    role_code: 'professional',
+    unit_id: structure.value?.items.find((item) => item.unit_id)?.unit_id ?? '',
+  }
+}
+async function createInvitation() {
+  saving.value = true
+  try {
+    invitationResult.value = await api('/api/v1/users/invitations', {
+      method: 'POST',
+      body: JSON.stringify(invitationForm.value),
+    })
+    users.value = (await api<{ items: User[] }>('/api/v1/users')).items
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : 'Invitation impossible.'
+  } finally {
+    saving.value = false
+  }
+}
+async function renewInvitation() {
+  if (!selectedUser.value) return
+  invitationResult.value = await api(`/api/v1/users/${selectedUser.value.id}/invitation`, { method: 'POST' })
+}
+async function revokeInvitation() {
+  if (!selectedUser.value || userReason.value.trim().length < 5) return
+  await api(`/api/v1/users/${selectedUser.value.id}/invitation/revoke`, {
+    method: 'POST',
+    body: JSON.stringify({ reason: userReason.value }),
+  })
+  notice.value = 'Invitation révoquée.'
+}
+function printInvitation() {
+  globalThis.print()
 }
 async function changeUserStatus() {
   if (!selectedUser.value || userReason.value.trim().length < 5) return
@@ -541,6 +622,11 @@ async function logout() {
   globalThis.location.assign(result.logout_url)
 }
 onMounted(async () => {
+  loading.value = true
+  if (await loadActivation()) {
+    loading.value = false
+    return
+  }
   await loadSession()
   if (session.value?.permissions.includes('notification.read')) await loadNotifications()
 })
@@ -557,6 +643,38 @@ onMounted(async () => {
       class="spin"
     /><span>{{ t('loading') }}</span>
   </div>
+  <main
+    v-else-if="activationToken || activationComplete"
+    id="main-content"
+    class="login-shell"
+  >
+    <section class="login-panel" aria-labelledby="activation-title">
+      <div class="brand-mark"><ShieldCheck :size="26" /></div>
+      <p class="product-label">Transmissions</p>
+      <template v-if="activationComplete">
+        <h1 id="activation-title">Compte administrateur activé</h1>
+        <p class="login-intro">Votre mot de passe est enregistré dans Keycloak. Le lien utilisé est désormais révoqué.</p>
+        <a class="primary-button login-button" href="/auth/login">Se connecter</a>
+      </template>
+      <template v-else>
+        <h1 id="activation-title">Activer le compte administrateur</h1>
+        <p class="login-intro">{{ activationDetails?.display_name }} · {{ activationDetails?.username }}</p>
+        <p v-if="notice" class="form-error" role="alert">{{ notice }}</p>
+        <form v-if="activationDetails" class="activation-form" @submit.prevent="completeActivation">
+          <label>Nouveau mot de passe<input v-model="activationPassword" type="password" minlength="12" maxlength="128" autocomplete="new-password" required></label>
+          <label>Confirmer le mot de passe<input v-model="activationConfirmation" type="password" minlength="12" maxlength="128" autocomplete="new-password" required></label>
+          <button class="primary-button" type="submit" :disabled="saving || activationPassword.length < 12 || activationPassword !== activationConfirmation">
+            <ShieldCheck :size="18" />Activer mon compte
+          </button>
+        </form>
+      </template>
+    </section>
+    <aside class="login-context" aria-label="Activation locale">
+      <div><span class="status-dot" />Activation locale à usage unique</div>
+      <h2>Votre mot de passe ne quitte pas cette installation.</h2>
+      <p>Le lien expire automatiquement et ne peut être utilisé qu’une seule fois.</p>
+    </aside>
+  </main>
   <main
     v-else-if="!session"
     id="main-content"
@@ -590,9 +708,6 @@ onMounted(async () => {
           <option value="en">{{ t('english') }}</option>
         </select>
       </label>
-      <div class="demo-access">
-        <p>{{ t('demoAccounts') }}</p><dl><div><dt>Administrateur</dt><dd>admin / Admin-Local-2026!</dd></div><div><dt>Chef de service</dt><dd>chefservice / Chef-Local-2026!</dd></div><div><dt>Professionnel</dt><dd>professionnel / Pro-Local-2026!</dd></div></dl>
-      </div>
     </section>
     <aside
       class="login-context"
@@ -2261,9 +2376,39 @@ onMounted(async () => {
               </h1>
             </div>
           </div><div
-            v-if="!selectedUser"
+            v-if="invitationMode"
+            class="user-invitation"
+          >
+            <button class="back-button" @click="invitationMode = false">
+              <ArrowLeft :size="17" />Retour
+            </button>
+            <form v-if="!invitationResult" @submit.prevent="createInvitation">
+              <h2>Nouvelle invitation locale</h2>
+              <label>Nom affiché<input v-model="invitationForm.display_name" required minlength="2" maxlength="160"></label>
+              <label>Identifiant<input v-model="invitationForm.username" required minlength="3" maxlength="80" pattern="[a-z0-9._-]+"></label>
+              <label>Adresse électronique<input v-model="invitationForm.email" required type="email" maxlength="254"></label>
+              <label>Rôle<select v-model="invitationForm.role_code"><option value="professional">Professionnel</option><option value="team_manager">Coordinateur</option><option value="service_manager">Chef de service</option></select></label>
+              <label>Unité principale<select v-model="invitationForm.unit_id" required><option
+                v-for="item in structure?.items.filter((row) => row.unit_id)"
+                :key="item.unit_id!"
+                :value="item.unit_id!"
+              >{{ item.service_name }} · {{ item.unit_name }}</option></select></label>
+              <button class="primary-button" :disabled="saving"><Send :size="17" />Créer l'invitation</button>
+            </form>
+            <section v-else class="invitation-ticket">
+              <span class="active-status">Lien créé</span>
+              <h2>Remettre ce lien au professionnel</h2>
+              <p>Valable jusqu'au {{ new Date(invitationResult.expires_at).toLocaleString('fr-FR') }} et utilisable une seule fois.</p>
+              <code>{{ invitationResult.activation_url }}</code>
+              <div><button class="secondary-button" @click="printInvitation"><Printer :size="17" />Imprimer</button><button class="primary-button" @click="invitationMode = false; invitationResult = null">Terminer</button></div>
+            </section>
+          </div><div
+            v-else-if="!selectedUser"
             class="data-table-wrap"
           >
+            <button class="primary-button invite-user-button" @click="openInvitation">
+              <Plus :size="17" />Inviter un professionnel
+            </button>
             <table>
               <thead><tr><th>Utilisateur</th><th>Identifiant</th><th>Rôle</th><th>Unité</th><th>État</th></tr></thead><tbody>
                 <tr
@@ -2271,7 +2416,7 @@ onMounted(async () => {
                   :key="user.id"
                 >
                   <td><strong>{{ user.display_name }}</strong><span>{{ user.email }}</span></td><td>{{ user.username }}</td><td>{{ user.roles }}</td><td>{{ user.units || 'Organisation' }}</td><td>
-                    <span :class="user.status === 'active' ? 'active-status' : 'archived-status'">{{ user.status === 'active' ? 'Actif' : 'Desactive' }}</span><button
+                    <span :class="user.status === 'active' ? 'active-status' : 'archived-status'">{{ user.status === 'active' ? 'Actif' : user.status === 'invited' ? 'Invité' : 'Desactive' }}</span><button
                       class="secondary-button"
                       @click="openUser(user)"
                     >
@@ -2282,7 +2427,7 @@ onMounted(async () => {
               </tbody>
             </table>
           </div><article
-            v-if="selectedUser"
+            v-if="selectedUser && !invitationMode"
             class="user-admin-detail"
           >
             <button
@@ -2291,7 +2436,17 @@ onMounted(async () => {
             >
               <ArrowLeft :size="17" />Retour a l equipe
             </button>
-            <header><span :class="selectedUser.status === 'active' ? 'active-status' : 'archived-status'">{{ selectedUser.status === 'active' ? 'Actif' : 'Desactive' }}</span><h2>{{ selectedUser.display_name }}</h2><p>{{ selectedUser.username }} · {{ selectedUser.email }}</p></header>
+            <header><span :class="selectedUser.status === 'active' ? 'active-status' : 'archived-status'">{{ selectedUser.status === 'active' ? 'Actif' : selectedUser.status === 'invited' ? 'Invité' : 'Desactive' }}</span><h2>{{ selectedUser.display_name }}</h2><p>{{ selectedUser.username }} · {{ selectedUser.email }}</p></header>
+            <div v-if="selectedUser.status === 'invited'" class="invitation-actions">
+              <p>Ce compte attend son activation locale.</p>
+              <button class="secondary-button" @click="renewInvitation"><Send :size="17" />Renouveler le lien</button>
+              <button class="danger-button" :disabled="userReason.trim().length < 5" @click="revokeInvitation"><X :size="17" />Révoquer</button>
+            </div>
+            <section v-if="invitationResult" class="invitation-ticket">
+              <h3>Nouveau lien à remettre</h3>
+              <code>{{ invitationResult.activation_url }}</code>
+              <button class="secondary-button" @click="printInvitation"><Printer :size="17" />Imprimer</button>
+            </section>
             <label class="admin-reason">Motif de la modification<input
               v-model="userReason"
               minlength="5"
@@ -2327,7 +2482,7 @@ onMounted(async () => {
                 </button>
               </form>
             </section>
-            <section class="account-status-action">
+            <section v-if="selectedUser.status !== 'invited'" class="account-status-action">
               <div><strong>{{ selectedUser.status === 'active' ? 'Desactiver le compte' : 'Reactiver le compte' }}</strong><p>La modification ferme immediatement toutes les sessions de cet utilisateur.</p></div><button
                 :class="selectedUser.status === 'active' ? 'danger-button' : 'primary-button'"
                 :disabled="userReason.trim().length < 5"

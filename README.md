@@ -116,16 +116,19 @@ should only be trusted for this development environment.
 
 ### Initial Accounts
 
-The Debian installer generates unique temporary passwords. After `transmy setup`, read them
-locally as `root`:
+The Debian installer prints a one-time local activation link for the organization administrator.
+The administrator chooses their password directly through that link; no permanent administrator
+password is displayed or sent by Transmy. A root operator can revoke previous links and issue a
+two-hour recovery link with:
 
 ```bash
-sudo cat /var/lib/transmy/initial-credentials.txt
+sudo transmy admin-reset
 ```
 
-Sign in with `admin`, `chefservice`, or `professionnel`, change each temporary password on first
-login, store the new credentials in the organization's secret manager, then securely delete the
-file using the command printed inside it. See the
+The Debian installer defaults to the production profile: it creates no generic business account,
+no fictional care record and no credentials file. An explicit `evaluation` profile may create
+fictional temporary accounts whose generated credentials are available only to `root` in
+`/var/lib/transmy/initial-credentials.txt`. See the
 [Debian installation guide](docs/11-installation-debian.md) for the complete procedure.
 
 ## Quality Checks

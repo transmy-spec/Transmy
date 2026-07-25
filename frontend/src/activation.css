@@ -1,0 +1,96 @@
+.activation-form {
+  display: grid;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.activation-form label {
+  display: grid;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.activation-form input {
+  min-height: 44px;
+  border: 1px solid #b8c5bf;
+  border-radius: 4px;
+  padding: 0 11px;
+  background: #fff;
+}
+
+.form-error {
+  color: #9f2d21;
+}
+
+.invite-user-button {
+  margin: 16px;
+}
+
+.user-invitation {
+  max-width: 760px;
+}
+
+.user-invitation form {
+  display: grid;
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.user-invitation form label {
+  display: grid;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.user-invitation input,
+.user-invitation select {
+  min-height: 42px;
+  border: 1px solid #b8c5bf;
+  border-radius: 4px;
+  padding: 0 11px;
+  background: #fff;
+}
+
+.invitation-ticket {
+  display: grid;
+  gap: 16px;
+  margin-top: 24px;
+  border: 1px solid #b8c5bf;
+  padding: 24px;
+}
+
+.invitation-ticket code {
+  overflow-wrap: anywhere;
+  padding: 14px;
+  background: #eef3f0;
+}
+
+.invitation-ticket > div,
+.invitation-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .invitation-ticket,
+  .invitation-ticket * {
+    visibility: visible;
+  }
+
+  .invitation-ticket {
+    position: absolute;
+    inset: 0;
+    border: 0;
+  }
+
+  .invitation-ticket button {
+    display: none;
+  }
+}

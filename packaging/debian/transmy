@@ -25,6 +25,14 @@ compose() {
 
 random_secret() { openssl rand -base64 48 | tr -d '\n'; }
 
+ensure_provisioning_secret() {
+  if ! grep -q '^KEYCLOAK_PROVISIONING_CLIENT_SECRET=.' "$ENV_FILE"; then
+    umask 077
+    printf 'KEYCLOAK_PROVISIONING_CLIENT_SECRET=%s\n' "$(random_secret)" >>"$ENV_FILE"
+    say "Generated the missing Keycloak provisioning secret."
+  fi
+}
+
 prompt_value() {
   label=$1
   default=$2
@@ -60,7 +68,9 @@ write_configuration() {
   email=$2
   language=$3
   tls_mode=$4
+  profile=$5
   oidc_secret=$(random_secret)
+  provisioning_secret=$(random_secret)
   admin_password=$(random_secret)
   manager_password=$(random_secret)
   professional_password=$(random_secret)
@@ -83,6 +93,7 @@ KEYCLOAK_DATABASE_PASSWORD=$(random_secret)
 KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME=transmy-bootstrap
 KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD=$(random_secret)
 OIDC_CLIENT_SECRET=$oidc_secret
+KEYCLOAK_PROVISIONING_CLIENT_SECRET=$provisioning_secret
 SESSION_SECRET=$(random_secret)
 FIELD_ENCRYPTION_KEY=$(random_secret)
 BACKUP_ENCRYPTION_PASSWORD=$(random_secret)
@@ -92,19 +103,19 @@ RESTORE_MAX_AGE_HOURS=744
 INTEGRATION_ALLOWED_HOSTS=host.docker.internal
 KEYCLOAK_REALM_FILE=$REALM_FILE
 TRANSMY_TLS_MODE=$tls_mode
+TRANSMY_INSTALLATION_PROFILE=$profile
 CADDY_CONFIG_FILE=$APP_DIR/infrastructure/caddy/Caddyfile.$tls_mode
 EOF
 
   python3 "$APP_DIR/packaging/debian/configure-realm.py" \
     "$APP_DIR/infrastructure/keycloak/transmissions-realm.json" \
-    "$REALM_FILE" "$domain" "$oidc_secret" \
-    "$admin_password" "$manager_password" "$professional_password"
+    "$REALM_FILE" "$domain" "$oidc_secret" "$provisioning_secret" \
+    "$profile" "$admin_password" "$manager_password" "$professional_password"
 
-  cat >"$STATE_DIR/initial-credentials.txt" <<EOF
-Transmy initial accounts for https://$domain
-
-Administrator: admin
-Password: $admin_password
+  rm -f "$STATE_DIR/initial-credentials.txt"
+  if [ "$profile" = evaluation ]; then
+    cat >"$STATE_DIR/initial-credentials.txt" <<EOF
+Transmy temporary demonstration accounts for https://$domain
 
 Service manager: chefservice
 Password: $manager_password
@@ -112,16 +123,25 @@ Password: $manager_password
 Professional: professionnel
 Password: $professional_password
 
-Change these passwords at first login. Delete this file afterwards:
+These accounts contain fictional data only. Change their passwords at first login.
+Delete this file afterwards:
   shred -u $STATE_DIR/initial-credentials.txt
 EOF
-  chmod 0600 "$ENV_FILE" "$STATE_DIR/initial-credentials.txt"
+    chmod 0600 "$STATE_DIR/initial-credentials.txt"
+  fi
+  chmod 0600 "$ENV_FILE"
   chown 1000:0 "$REALM_FILE"
   chmod 0400 "$REALM_FILE"
 }
 
 provision_initial_accounts() {
   domain=$1
+  profile=$2
+  organization_name=$3
+  establishment_name=$4
+  service_name=$5
+  unit_name=$6
+  initialize=${7:-no}
   issuer="https://$domain/oidc/realms/transmissions"
   compose exec -T postgres-app psql \
     --username transmissions_app \
@@ -136,6 +156,137 @@ provision_initial_accounts() {
         '33333333-3333-4333-8333-333333333333'
       );
     " >/dev/null
+  if [ "$profile" = production ] && [ "$initialize" = yes ]; then
+    compose exec -T postgres-app psql \
+      --username transmissions_app \
+      --dbname transmissions \
+      --set ON_ERROR_STOP=1 \
+      --set organization_name="$organization_name" \
+      --set establishment_name="$establishment_name" \
+      --set service_name="$service_name" \
+      --set unit_name="$unit_name" <<'SQL'
+      BEGIN;
+      TRUNCATE TABLE
+        audit.event,
+        auth_session.web_session,
+        app.acceptance_scenario,
+        app.export_request,
+        app.handover,
+        app.local_integration,
+        app.notification_state,
+        app.personalized_plan,
+        app.pilot_decision,
+        app.pilot_issue,
+        app.retention_policy,
+        app.schedule_entry,
+        app.supported_person,
+        app.task,
+        app.transmission
+      CASCADE;
+      DELETE FROM app.role_assignment
+        WHERE user_id IN (
+          '60000000-0000-4000-8000-000000000002',
+          '60000000-0000-4000-8000-000000000003'
+        );
+      DELETE FROM app.membership
+        WHERE user_id IN (
+          '60000000-0000-4000-8000-000000000002',
+          '60000000-0000-4000-8000-000000000003'
+        );
+      DELETE FROM app.user_account
+        WHERE id IN (
+          '60000000-0000-4000-8000-000000000002',
+          '60000000-0000-4000-8000-000000000003'
+        );
+      UPDATE app.organization SET name=:'organization_name'
+        WHERE id='10000000-0000-4000-8000-000000000001';
+      UPDATE app.establishment SET name=:'establishment_name'
+        WHERE id='20000000-0000-4000-8000-000000000001';
+      UPDATE app.service SET name=:'service_name'
+        WHERE id='30000000-0000-4000-8000-000000000001';
+      UPDATE app.unit SET name=:'unit_name'
+        WHERE id='40000000-0000-4000-8000-000000000001';
+      UPDATE app.user_account
+        SET display_name='Administrateur Transmy',email=NULL
+        WHERE id='60000000-0000-4000-8000-000000000001';
+      COMMIT;
+SQL
+  fi
+}
+
+issue_admin_activation() {
+  compose exec -T api python -m app.admin_activation "$1"
+}
+
+reconcile_keycloak_provisioning() {
+  say "Reconciling the local Keycloak provisioning client..."
+  compose exec -T keycloak sh -eu -c '
+    KCADM=/opt/keycloak/bin/kcadm.sh
+    CONFIG=/tmp/transmy-kcadm.config
+    authenticated=0
+    attempt=1
+    while [ "$attempt" -le 12 ]; do
+      if "$KCADM" config credentials \
+        --config "$CONFIG" \
+        --server http://127.0.0.1:8080/oidc \
+        --realm master \
+        --user "$KC_BOOTSTRAP_ADMIN_USERNAME" \
+        --password "$KC_BOOTSTRAP_ADMIN_PASSWORD"; then
+        authenticated=1
+        break
+      fi
+      attempt=$((attempt + 1))
+      sleep 5
+    done
+    [ "$authenticated" -eq 1 ] || {
+      echo "Unable to authenticate the Keycloak provisioning client" >&2
+      exit 1
+    }
+
+    client_id=$("$KCADM" get clients \
+      --config "$CONFIG" \
+      -r transmissions \
+      -q clientId=transmissions-provisioning \
+      --fields id \
+      --format csv \
+      --noquotes | head -n 1)
+
+    if [ -z "$client_id" ]; then
+      client_id=$("$KCADM" create clients \
+        --config "$CONFIG" \
+        -r transmissions \
+        -s clientId=transmissions-provisioning \
+        -s enabled=true \
+        -s publicClient=false \
+        -s serviceAccountsEnabled=true \
+        -s standardFlowEnabled=false \
+        -s directAccessGrantsEnabled=false \
+        -s clientAuthenticatorType=client-secret \
+        -s "secret=$TRANSMY_PROVISIONING_CLIENT_SECRET" \
+        -i)
+    else
+      "$KCADM" update "clients/$client_id" \
+        --config "$CONFIG" \
+        -r transmissions \
+        -s enabled=true \
+        -s publicClient=false \
+        -s serviceAccountsEnabled=true \
+        -s standardFlowEnabled=false \
+        -s directAccessGrantsEnabled=false \
+        -s clientAuthenticatorType=client-secret \
+        -s "secret=$TRANSMY_PROVISIONING_CLIENT_SECRET"
+    fi
+
+    for role in manage-users view-users; do
+      "$KCADM" add-roles \
+        --config "$CONFIG" \
+        -r transmissions \
+        --uusername service-account-transmissions-provisioning \
+        --cclientid realm-management \
+        --rolename "$role"
+    done
+    rm -f "$CONFIG"
+  '
 }
 
 setup() {
@@ -162,29 +313,55 @@ setup() {
   fi
   language=${TRANSMY_LANGUAGE:-$(prompt_value "Default language (fr/en)" "fr")}
   [ "$language" = fr ] || [ "$language" = en ] || die "language must be 'fr' or 'en'"
+  profile=${TRANSMY_PROFILE:-$(prompt_value "Installation profile (production/evaluation)" "production")}
+  [ "$profile" = production ] || [ "$profile" = evaluation ] ||
+    die "installation profile must be 'production' or 'evaluation'"
+  if [ "$profile" = production ]; then
+    organization_name=${TRANSMY_ORGANIZATION_NAME:-$(prompt_value "Organization name" "Mon association")}
+    establishment_name=${TRANSMY_ESTABLISHMENT_NAME:-$(prompt_value "Establishment name" "Etablissement principal")}
+    service_name=${TRANSMY_SERVICE_NAME:-$(prompt_value "Service name" "Accompagnement")}
+    unit_name=${TRANSMY_UNIT_NAME:-$(prompt_value "Initial unit name" "Unite principale")}
+  else
+    organization_name="Association Horizon"
+    establishment_name="Maison des Tilleuls"
+    service_name="Accompagnement"
+    unit_name="Unite A"
+  fi
 
   say "Generating installation-specific secrets and Keycloak realm..."
-  write_configuration "$domain" "$email" "$language" "$tls_mode"
+  write_configuration "$domain" "$email" "$language" "$tls_mode" "$profile"
   say "Building production images. This can take several minutes..."
   compose config --quiet
   compose build
   compose up -d --wait --wait-timeout 240
-  provision_initial_accounts "$domain"
+  reconcile_keycloak_provisioning
+  provision_initial_accounts "$domain" "$profile" "$organization_name" \
+    "$establishment_name" "$service_name" "$unit_name" yes
+  say ""
+  say "Administrator activation link (valid for two hours):"
+  issue_admin_activation admin_bootstrap
   systemctl enable transmy.service transmy-backup.timer >/dev/null 2>&1 || true
   systemctl start transmy-backup.timer >/dev/null 2>&1 || true
   say ""
   say "Transmy is available at https://$domain"
-  say "Initial credentials: $STATE_DIR/initial-credentials.txt"
+  if [ "$profile" = evaluation ]; then
+    say "Fictional evaluation credentials: $STATE_DIR/initial-credentials.txt"
+  else
+    say "Production profile: no generic or demonstration account was created."
+  fi
   if [ "$mode" = local ]; then
     say "Export the local CA with: transmy certificate"
   fi
-  say "This installation is suitable for evaluation with fictional data only."
+  [ "$profile" = production ] ||
+    say "Evaluation profile: use fictional data only."
 }
 
 start() {
   require_root
   [ -f "$ENV_FILE" ] || die "run 'transmy setup' first"
+  ensure_provisioning_secret
   compose up -d --wait --wait-timeout 240
+  reconcile_keycloak_provisioning
 }
 
 stop() {
@@ -244,6 +421,13 @@ restore_test() {
   compose --profile operations run --rm restore-test
 }
 
+admin_reset() {
+  require_root
+  [ -f "$ENV_FILE" ] || die "Transmy is not configured"
+  say "New administrator activation link (valid for two hours):"
+  issue_admin_activation admin_reset
+}
+
 certificate() {
   require_root
   [ -f "$ENV_FILE" ] || die "Transmy is not configured"
@@ -262,10 +446,15 @@ upgrade() {
   say "Creating and validating a backup before upgrade..."
   backup
   restore_test
+  ensure_provisioning_secret
   compose build
   compose up -d --wait --wait-timeout 240
+  reconcile_keycloak_provisioning
   domain=$(sed -n 's/^APP_DOMAIN=//p' "$ENV_FILE")
-  provision_initial_accounts "$domain"
+  profile=$(sed -n 's/^TRANSMY_INSTALLATION_PROFILE=//p' "$ENV_FILE")
+  [ -n "$profile" ] || profile=evaluation
+  provision_initial_accounts "$domain" "$profile" \
+    "Association Horizon" "Maison des Tilleuls" "Accompagnement" "Unite A" no
   doctor
 }
 
@@ -285,6 +474,7 @@ Commands:
   stop           Stop the application without deleting data
   status         Show container status
   doctor         Validate configuration and public health
+  admin-reset    Issue a one-time local administrator recovery link
   backup         Create an encrypted backup
   restore-test   Test the latest encrypted backup
   certificate    Export the local HTTPS CA certificate
@@ -301,6 +491,7 @@ case "$command" in
   stop) stop "$@" ;;
   status) status_cmd "$@" ;;
   doctor) doctor "$@" ;;
+  admin-reset) admin_reset "$@" ;;
   backup) backup "$@" ;;
   restore-test) restore_test "$@" ;;
   certificate) certificate "$@" ;;

@@ -6,10 +6,17 @@ base_url="https://$APP_DOMAIN"
 backup_max_age="${BACKUP_MAX_AGE_HOURS:-26}"
 restore_max_age="${RESTORE_MAX_AGE_HOURS:-744}"
 now="$(date +%s)"
+caddy_ip="$(getent hosts caddy | awk 'NR == 1 { print $1 }')"
+test -n "$caddy_ip"
+curl_options="--fail --silent --show-error"
+if [ "${OPERATIONS_TLS_INSECURE:-false}" = true ]; then
+  curl_options="$curl_options --insecure"
+fi
 
 for path in / /api/v1/health/live /oidc/realms/transmissions/.well-known/openid-configuration
 do
-  curl --fail --silent --show-error --resolve "$APP_DOMAIN:443:caddy" "$base_url$path" >/dev/null
+  # shellcheck disable=SC2086
+  curl $curl_options --resolve "$APP_DOMAIN:443:$caddy_ip" "$base_url$path" >/dev/null
 done
 
 latest_backup="$(find /backups -maxdepth 1 -name 'backup-*.json' -type f | sort | tail -n 1)"

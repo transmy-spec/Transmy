@@ -3,7 +3,7 @@ set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 REPOSITORY_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)
-VERSION=${1:-0.24.0}
+VERSION=${1:-0.27.0~rc1}
 ARCHITECTURE=${2:-all}
 OUTPUT_DIR=${3:-"$REPOSITORY_ROOT/dist"}
 BUILD_ROOT=$(mktemp -d)
@@ -50,8 +50,16 @@ install -m 0644 "$SCRIPT_DIR/transmy-backup.service" \
 install -m 0644 "$SCRIPT_DIR/transmy-backup.timer" \
   "$PACKAGE_ROOT/usr/lib/systemd/system/transmy-backup.timer"
 
-cp -a "$REPOSITORY_ROOT/backend" "$PACKAGE_ROOT/usr/lib/transmy/backend"
-cp -a "$REPOSITORY_ROOT/frontend" "$PACKAGE_ROOT/usr/lib/transmy/frontend"
+mkdir -p \
+  "$PACKAGE_ROOT/usr/lib/transmy/backend" \
+  "$PACKAGE_ROOT/usr/lib/transmy/frontend"
+tar -C "$REPOSITORY_ROOT/backend" \
+  --exclude=.mypy_cache --exclude=.pytest_cache --exclude=.ruff_cache \
+  --exclude=__pycache__ --exclude='*.pyc' \
+  -cf - . | tar -C "$PACKAGE_ROOT/usr/lib/transmy/backend" -xf -
+tar -C "$REPOSITORY_ROOT/frontend" \
+  --exclude=node_modules --exclude=dist \
+  -cf - . | tar -C "$PACKAGE_ROOT/usr/lib/transmy/frontend" -xf -
 cp -a "$REPOSITORY_ROOT/infrastructure" "$PACKAGE_ROOT/usr/lib/transmy/infrastructure"
 install -m 0644 "$REPOSITORY_ROOT/compose.yaml" "$PACKAGE_ROOT/usr/lib/transmy/compose.yaml"
 install -m 0644 "$REPOSITORY_ROOT/compose.production.yaml" \

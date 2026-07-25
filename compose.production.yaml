@@ -66,6 +66,7 @@ services:
       APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN for production}
       BACKUP_MAX_AGE_HOURS: ${BACKUP_MAX_AGE_HOURS:-26}
       RESTORE_MAX_AGE_HOURS: ${RESTORE_MAX_AGE_HOURS:-744}
+      OPERATIONS_TLS_INSECURE: ${OPERATIONS_TLS_INSECURE:-false}
     volumes:
       - encrypted_backups:/backups:ro
     networks:

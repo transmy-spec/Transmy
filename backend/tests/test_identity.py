@@ -8,10 +8,15 @@ from starlette.requests import Request
 from app.routers.identity import (
     MembershipInput,
     NameInput,
+    ReasonInput,
+    UserInvitationInput,
     UserStatusInput,
     add_membership,
     audit_events,
     create_unit,
+    invite_user,
+    renew_user_invitation,
+    revoke_user_invitation,
     session,
     structure,
     update_user_status,
@@ -196,3 +201,99 @@ def test_user_detail_status_and_membership_management() -> None:
         response = add_membership(target, MembershipInput(unit_id=unit, is_primary=True),
                                   _request(), _context())
     assert response["unit_id"] == str(unit)
+
+
+def test_invite_user_provisions_identity_membership_role_and_ticket() -> None:
+    target = UUID("90000000-0000-4000-8000-000000000001")
+    unit = UUID("40000000-0000-4000-8000-000000000001")
+    role = UUID("50000000-0000-4000-8000-000000000002")
+    scope_result = MagicMock()
+    scope_result.mappings.return_value.first.return_value = {"unit_id": unit, "role_id": role}
+    scope_connection = MagicMock()
+    scope_connection.execute.return_value = scope_result
+    write_connection = MagicMock()
+    database = MagicMock()
+    database.connect.return_value.__enter__.return_value = scope_connection
+    database.begin.return_value.__enter__.return_value = write_connection
+    settings = MagicMock()
+    settings.oidc_issuer = "https://local/oidc/realms/transmissions"
+    settings.public_url = "https://local"
+    payload = UserInvitationInput(
+        username="lea.martin",
+        display_name="Lea Martin",
+        email="lea@example.test",
+        role_code="professional",
+        unit_id=unit,
+    )
+    with (
+        patch("app.routers.identity.engine", database),
+        patch("app.routers.identity.require_permission"),
+        patch("app.routers.identity.create_user", return_value=target),
+        patch("app.routers.identity.random_token", return_value="invitation-token"),
+        patch("app.routers.identity.get_settings", return_value=settings),
+    ):
+        result = invite_user(payload, _request(), _context())
+    assert result["id"] == str(target)
+    assert result["activation_url"] == "https://local/#activation=invitation-token"
+    assert write_connection.execute.call_count == 3
+
+
+def test_invitation_conflict_renewal_and_revocation() -> None:
+    from app.keycloak_admin import KeycloakUserConflictError
+
+    unit = UUID("40000000-0000-4000-8000-000000000001")
+    scope_result = MagicMock()
+    scope_result.mappings.return_value.first.return_value = {
+        "unit_id": unit,
+        "role_id": UUID(int=2),
+    }
+    connection = MagicMock()
+    connection.execute.return_value = scope_result
+    database = MagicMock()
+    database.connect.return_value.__enter__.return_value = connection
+    payload = UserInvitationInput(
+        username="deja.pris",
+        display_name="Compte Existant",
+        email="existing@example.test",
+        role_code="professional",
+        unit_id=unit,
+    )
+    with (
+        patch("app.routers.identity.engine", database),
+        patch("app.routers.identity.require_permission"),
+        patch("app.routers.identity.create_user", side_effect=KeycloakUserConflictError),
+        pytest.raises(HTTPException) as error,
+    ):
+        invite_user(payload, _request(), _context())
+    assert error.value.status_code == 409
+
+    target = UUID("90000000-0000-4000-8000-000000000001")
+    active = MagicMock()
+    active.first.return_value = (target,)
+    write_connection = MagicMock()
+    write_connection.execute.side_effect = [active, MagicMock(), MagicMock()]
+    database = MagicMock()
+    database.begin.return_value.__enter__.return_value = write_connection
+    settings = MagicMock()
+    settings.public_url = "https://local"
+    with (
+        patch("app.routers.identity.engine", database),
+        patch("app.routers.identity.require_permission"),
+        patch("app.routers.identity.random_token", return_value="renewed"),
+        patch("app.routers.identity.get_settings", return_value=settings),
+    ):
+        renewed = renew_user_invitation(target, _request(), _context())
+    assert renewed["activation_url"].endswith("#activation=renewed")
+
+    revoked = MagicMock()
+    revoked.first.return_value = (target,)
+    write_connection = MagicMock()
+    write_connection.execute.side_effect = [revoked, MagicMock()]
+    database.begin.return_value.__enter__.return_value = write_connection
+    with (
+        patch("app.routers.identity.engine", database),
+        patch("app.routers.identity.require_permission"),
+    ):
+        revoke_user_invitation(
+            target, ReasonInput(reason="Invitation remise par erreur"), _request(), _context()
+        )

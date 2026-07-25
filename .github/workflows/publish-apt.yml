@@ -8,7 +8,7 @@ on:
       version:
         description: Debian package version
         required: true
-        default: "0.24.0"
+        default: "0.27.0"
 
 permissions:
   contents: read

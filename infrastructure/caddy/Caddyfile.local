@@ -31,6 +31,14 @@ https://{$APP_DOMAIN} {
     reverse_proxy api:8000
   }
 
+  handle /oidc/admin/* {
+    respond 404
+  }
+
+  handle /oidc/realms/master/* {
+    respond 404
+  }
+
   handle /oidc/* {
     reverse_proxy keycloak:8080
   }

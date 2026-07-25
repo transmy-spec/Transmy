@@ -1,17 +1,29 @@
 import json
+from contextlib import suppress
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
+from app.config import get_settings
 from app.database import engine
+from app.keycloak_admin import (
+    KeycloakProvisioningError,
+    KeycloakUserConflictError,
+    create_user,
+    delete_user,
+)
 from app.security import (
     SecurityContext,
     get_security_context,
     permissions_for,
+    random_token,
     require_permission,
+    token_hash,
     verify_csrf,
 )
 
@@ -34,6 +46,41 @@ class MembershipInput(BaseModel):
 
 class ReasonInput(BaseModel):
     reason: str = Field(min_length=5, max_length=500)
+
+
+class UserInvitationInput(BaseModel):
+    username: str = Field(min_length=3, max_length=80, pattern=r"^[a-z0-9._-]+$")
+    display_name: str = Field(min_length=2, max_length=160)
+    email: str = Field(min_length=5, max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    role_code: str
+    unit_id: UUID
+
+
+def _invitation_url(token: str) -> str:
+    return f"{str(get_settings().public_url).rstrip('/')}/#activation={token}"
+
+
+def _create_invitation_ticket(connection: Any, user_id: UUID) -> tuple[str, datetime]:
+    token = random_token(48)
+    expires_at = datetime.now(UTC) + timedelta(hours=48)
+    connection.execute(
+        text(
+            """
+            UPDATE auth_session.account_activation SET revoked_at=now()
+            WHERE user_id=:user_id AND consumed_at IS NULL AND revoked_at IS NULL;
+            INSERT INTO auth_session.account_activation
+              (id,user_id,token_hash,purpose,expires_at)
+            VALUES (:id,:user_id,:token_hash,'user_invitation',:expires_at)
+            """
+        ),
+        {
+            "id": uuid4(),
+            "user_id": user_id,
+            "token_hash": token_hash(token),
+            "expires_at": expires_at,
+        },
+    )
+    return token, expires_at
 
 
 def _audit_user(connection: Any, context: SecurityContext, event: str, user_id: UUID,
@@ -165,6 +212,150 @@ def users(
         return {"items": [dict(row) for row in rows]}
 
 
+@router.post("/users/invitations", status_code=status.HTTP_201_CREATED)
+def invite_user(
+    payload: UserInvitationInput,
+    request: Request,
+    context: Annotated[SecurityContext, Depends(get_security_context)],
+) -> dict[str, Any]:
+    require_permission(context, "role.manage")
+    verify_csrf(request, context, request.headers.get("X-CSRF-Token"))
+    if payload.role_code not in {"professional", "team_manager", "service_manager"}:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "invalid_role")
+    with engine.connect() as connection:
+        scope = connection.execute(
+            text(
+                """
+                SELECT u.id AS unit_id,r.id AS role_id
+                FROM app.unit u
+                JOIN app.service s ON s.id=u.service_id
+                JOIN app.establishment e ON e.id=s.establishment_id
+                CROSS JOIN app.role r
+                WHERE u.id=:unit_id AND e.organization_id=:organization_id
+                  AND r.code=:role_code
+                """
+            ),
+            {
+                "unit_id": payload.unit_id,
+                "organization_id": context.organization_id,
+                "role_code": payload.role_code,
+            },
+        ).mappings().first()
+    if not scope:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "unit_or_role_not_found")
+    try:
+        keycloak_id = create_user(payload.username, payload.email, payload.display_name)
+    except KeycloakUserConflictError as error:
+        raise HTTPException(status.HTTP_409_CONFLICT, "username_or_email_exists") from error
+    except KeycloakProvisioningError as error:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, "identity_provider_unavailable"
+        ) from error
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO app.user_account
+                      (id,organization_id,issuer,subject,username,display_name,email,status)
+                    VALUES (:id,:organization_id,:issuer,:subject,:username,:display_name,
+                      :email,'invited');
+                    INSERT INTO app.membership (id,user_id,unit_id,is_primary)
+                    VALUES (:membership_id,:id,:unit_id,true);
+                    INSERT INTO app.role_assignment
+                      (id,user_id,role_id,scope_type,scope_id)
+                    VALUES (:assignment_id,:id,:role_id,'unit',:unit_id)
+                    """
+                ),
+                {
+                    "id": keycloak_id,
+                    "organization_id": context.organization_id,
+                    "issuer": get_settings().oidc_issuer,
+                    "subject": str(keycloak_id),
+                    "username": payload.username,
+                    "display_name": payload.display_name.strip(),
+                    "email": payload.email.lower(),
+                    "membership_id": uuid4(),
+                    "assignment_id": uuid4(),
+                    "unit_id": payload.unit_id,
+                    "role_id": scope["role_id"],
+                },
+            )
+            token, expires_at = _create_invitation_ticket(connection, keycloak_id)
+            _audit_user(
+                connection,
+                context,
+                "user.invited",
+                keycloak_id,
+                {"role_code": payload.role_code, "unit_id": str(payload.unit_id)},
+            )
+    except SQLAlchemyError as error:
+        with suppress(KeycloakProvisioningError):
+            delete_user(keycloak_id)
+        if isinstance(error, IntegrityError):
+            raise HTTPException(status.HTTP_409_CONFLICT, "username_or_email_exists") from error
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "provisioning_failed") from error
+    return {
+        "id": str(keycloak_id),
+        "activation_url": _invitation_url(token),
+        "expires_at": expires_at.isoformat(),
+    }
+
+
+@router.post("/users/{user_id}/invitation")
+def renew_user_invitation(
+    user_id: UUID,
+    request: Request,
+    context: Annotated[SecurityContext, Depends(get_security_context)],
+) -> dict[str, str]:
+    require_permission(context, "role.manage")
+    verify_csrf(request, context, request.headers.get("X-CSRF-Token"))
+    with engine.begin() as connection:
+        user = connection.execute(
+            text(
+                "SELECT id FROM app.user_account WHERE id=:id "
+                "AND organization_id=:organization_id AND status='invited' FOR UPDATE"
+            ),
+            {"id": user_id, "organization_id": context.organization_id},
+        ).first()
+        if not user:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "invited_user_not_found")
+        token, expires_at = _create_invitation_ticket(connection, user_id)
+        _audit_user(connection, context, "user.invitation_renewed", user_id, {})
+    return {"activation_url": _invitation_url(token), "expires_at": expires_at.isoformat()}
+
+
+@router.post("/users/{user_id}/invitation/revoke", status_code=status.HTTP_204_NO_CONTENT)
+def revoke_user_invitation(
+    user_id: UUID,
+    payload: ReasonInput,
+    request: Request,
+    context: Annotated[SecurityContext, Depends(get_security_context)],
+) -> None:
+    require_permission(context, "role.manage")
+    verify_csrf(request, context, request.headers.get("X-CSRF-Token"))
+    with engine.begin() as connection:
+        revoked = connection.execute(
+            text(
+                """
+                UPDATE auth_session.account_activation a SET revoked_at=now()
+                FROM app.user_account u
+                WHERE a.user_id=:user_id AND u.id=a.user_id
+                  AND u.organization_id=:organization_id AND u.status='invited'
+                  AND a.consumed_at IS NULL AND a.revoked_at IS NULL
+                RETURNING a.id
+                """
+            ),
+            {"user_id": user_id, "organization_id": context.organization_id},
+        ).first()
+        if not revoked:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "active_invitation_not_found")
+        _audit_user(
+            connection, context, "user.invitation_revoked", user_id,
+            {"reason": payload.reason.strip()},
+        )
+
+
 @router.get("/users/{user_id}")
 def user_detail(user_id: UUID,
     context: Annotated[SecurityContext, Depends(get_security_context)]) -> dict[str, Any]:
@@ -196,7 +387,8 @@ def update_user_status(user_id: UUID, payload: UserStatusInput, request: Request
     with engine.begin() as connection:
         updated = connection.execute(text("""UPDATE app.user_account
           SET status=:status,authorization_version=authorization_version+1
-          WHERE id=:id AND organization_id=:organization_id RETURNING id,status"""),
+          WHERE id=:id AND organization_id=:organization_id AND status<>'invited'
+          RETURNING id,status"""),
           {"status": payload.status, "id": user_id,
            "organization_id": context.organization_id}).mappings().first()
         if not updated:

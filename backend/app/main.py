@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from app.config import get_settings
 from app.logging import configure_logging
 from app.routers.acceptance import router as acceptance_router
+from app.routers.account_activation import router as account_activation_router
 from app.routers.advanced_schedule import router as advanced_schedule_router
 from app.routers.attachments import router as attachments_router
 from app.routers.auth import router as auth_router
@@ -40,6 +41,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.include_router(health_router, prefix="/api/v1")
+app.include_router(account_activation_router)
 app.include_router(auth_router)
 app.include_router(attachments_router)
 app.include_router(acceptance_router)

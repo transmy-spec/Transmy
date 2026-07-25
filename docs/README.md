@@ -5,6 +5,7 @@ Ce dossier décrit le cadrage fonctionnel, technique et de sécurité d'une appl
 ## Documents
 
 - [Preparation du pilote](07-preparation-pilote.md)
+- [Release candidate de production](12-release-candidate-production.md)
 - [Phase 2](08-phase-2.md)
 - [Installation simplifiee sur Debian 13](11-installation-debian.md)
 

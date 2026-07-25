@@ -31,5 +31,8 @@
     "vite": "^7.0.0",
     "vitest": "^3.2.0",
     "vue-tsc": "^2.2.0"
+  },
+  "overrides": {
+    "brace-expansion": "5.0.8"
   }
 }
