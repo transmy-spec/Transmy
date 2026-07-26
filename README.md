@@ -29,6 +29,23 @@ on social and medico-social services and to personalized support planning.
 > suitable hosting, operating procedures, risk management and business acceptance testing.
 > This project does not constitute legal advice or security certification.
 
+## Application Preview
+
+The screenshots below were generated from the local evaluation profile with entirely fictional
+people and records. No production or personal data is included.
+
+### Team Dashboard
+
+![Transmy team dashboard](docs/screenshots/dashboard.png)
+
+### Supported People
+
+![Scope-restricted supported people directory](docs/screenshots/supported-people.png)
+
+### Shared Schedule
+
+![Shared professional and supported-person schedule](docs/screenshots/schedule.png)
+
 ## Features
 
 | Area | Capabilities |
@@ -151,7 +168,7 @@ docker compose --profile validation run --rm security-audit
 docker compose --profile validation run --rm load-test
 ```
 
-Current reference baseline: **72 backend tests**, **3 frontend tests**, more than **90% backend
+Current reference baseline: **81 backend tests**, **3 frontend tests**, more than **90% backend
 coverage**, a successful HTTP security audit and a pilot load test with no failed request.
 
 ## Backup and Restore
@@ -212,6 +229,7 @@ deployment context.
 | [Personalized support plan](docs/09-projet-personnalise.md) | Functional framework for personalized support planning |
 | [Operations](docs/10-exploitation-production.md) | Deployment, backup, restore and incident procedures |
 | [Debian 13 installation](docs/11-installation-debian.md) | Package, guided setup and system administration |
+| [Production release candidate](docs/12-release-candidate-production.md) | Technical evidence and external approval gates |
 
 The complete index is available in the [docs](docs/README.md) directory.
 
