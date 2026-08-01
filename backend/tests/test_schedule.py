@@ -76,6 +76,6 @@ def test_create_and_cancel_schedule_entry() -> None:
     connection.execute.side_effect = [MagicMock(first=lambda: (ENTRY,)), MagicMock()]
     with patch("app.routers.schedule.engine", database(connection, True)), patch(
         "app.routers.schedule.require_permission"
-    ):
+    ), patch("app.routers.schedule.permissions_for", return_value={"schedule.manage"}):
         cancel_schedule(ENTRY, request(), context(), '"1"')
     assert connection.execute.call_count == 2
