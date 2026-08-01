@@ -32,7 +32,7 @@ def test_keycloak_realm_uses_deployment_environment() -> None:
     assert client["secret"] == "${OIDC_CLIENT_SECRET}"
     assert client["redirectUris"] == ["${APP_PUBLIC_URL}/auth/callback"]
     assert client["webOrigins"] == ["${APP_PUBLIC_URL}"]
-    assert client["attributes"]["post.logout.redirect.uris"] == "${APP_PUBLIC_URL}/*"
+    assert client["attributes"]["post.logout.redirect.uris"] == "${APP_PUBLIC_URL}/"
 
     compose = (REPOSITORY_ROOT / "compose.yaml").read_text()
     keycloak_environment = compose.split("  keycloak:\n", 1)[1].split(
