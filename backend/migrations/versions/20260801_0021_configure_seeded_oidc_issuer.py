@@ -7,7 +7,7 @@ Revises: 20260719_0020
 from alembic import op
 from sqlalchemy import bindparam, text
 
-from app.config import get_settings, oidc_issuer_for_public_url
+from app.config import get_settings
 
 revision: str = "20260801_0021"
 down_revision: str | None = "20260719_0020"
@@ -23,7 +23,7 @@ _SEEDED_ACCOUNT_IDS = (
 
 
 def _configured_issuer() -> str:
-    return oidc_issuer_for_public_url(get_settings().public_url)
+    return get_settings().oidc_issuer
 
 
 def _update_seeded_issuer(current_issuer: str, replacement_issuer: str) -> None:
@@ -50,4 +50,6 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    _update_seeded_issuer(_configured_issuer(), _LOCAL_ISSUER)
+    # Keep the corrected issuer: reverting data would break authentication
+    # for non-local deployments running the preceding application revision.
+    pass

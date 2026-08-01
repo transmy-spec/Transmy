@@ -6,10 +6,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import URL
 
 
-def oidc_issuer_for_public_url(public_url: AnyHttpUrl | str) -> str:
-    return f"{str(public_url).rstrip('/')}/oidc/realms/transmissions"
-
-
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="APP_",
