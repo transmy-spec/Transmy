@@ -21,7 +21,7 @@
       "webOrigins": ["${APP_PUBLIC_URL}"],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "${APP_PUBLIC_URL}/*"
+        "post.logout.redirect.uris": "${APP_PUBLIC_URL}/"
       }
     }
   ],
