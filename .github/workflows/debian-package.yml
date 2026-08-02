@@ -43,6 +43,7 @@ jobs:
           sh -n packaging/debian/transmy
           sh -n packaging/debian/build-package.sh
           sh -n packaging/debian/build-apt-repository.sh
+          sh -n packaging/debian/install-from-github.sh
           sh -n packaging/debian/install-apt-repository.sh.in
           sh -n packaging/debian/test-package.sh
           sh -n packaging/debian/postinst

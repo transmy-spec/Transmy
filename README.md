@@ -60,6 +60,20 @@ people and records. No production or personal data is included.
 | Operations | Audited exports, retention policies, encrypted backups, restore exercises and production checks |
 | Interface | Responsive, printable and accessible UI, with a French/English preference for navigation and permanent interface elements |
 
+## How It Works
+
+Transmissions is installed inside the organization and accessed through a web browser. The local
+administrator activates the organization, creates individual staff accounts and assigns each
+person a role and one or more units. Service managers maintain the directory of supported people,
+while professionals record and share only the information available within their authorized
+scope.
+
+Daily work is organized around the dashboard, handover notes, tasks and separate calendars for
+staff and supported people. Scheduled activities can bring several professionals and supported
+people together, and can be linked to goals in a personalized support plan. Sensitive actions are
+audited, and printable views support meetings and day-to-day communication without replacing the
+organization's own governance procedures.
+
 ## Architecture
 
 ```mermaid
@@ -81,32 +95,41 @@ flowchart LR
 - **HTTPS entry point:** Caddy with local development certificates and ACME in production
 - **Deployment:** Docker Compose with separate development and production images
 
-## Quick Start
+## Install on Debian 13
 
-### Debian 13 Package
+Use a dedicated Debian 13 server or virtual machine with at least 4 CPU cores, 8 GB of memory and
+40 GB of free disk space. Internet access is required during installation; Docker and Compose are
+installed automatically if necessary.
 
-Lot 24 provides a Debian package and a guided administration command:
+Download the installer and run it as root. These are all the commands required:
 
 ```bash
-curl -fsSLO https://transmy-spec.github.io/transmy/debian/install.sh
-less install.sh
-sudo sh install.sh
-sudo apt install transmy
-sudo transmy setup
+curl --proto '=https' --tlsv1.2 -fsSLo transmy-install.sh \
+  https://raw.githubusercontent.com/transmy-spec/Transmy/newest/packaging/debian/install-from-github.sh
+sudo sh transmy-install.sh
 ```
 
-The assistant generates installation-specific secrets, configures the public domain and
-Keycloak realm, starts the hardened production stack and schedules encrypted daily backups.
-Commands such as `transmy doctor`, `transmy backup` and `transmy upgrade` cover routine
-operations. Packages and repository metadata are signed with a dedicated OpenPGP key. See the
-[Debian 13 installation guide](docs/11-installation-debian.md).
+The script verifies Debian, builds the release candidate locally, installs the package and opens
+the guided setup. The assistant then creates installation-specific secrets, configures the local
+IP address or public domain, initializes Keycloak, starts the production stack and schedules
+encrypted daily backups. It also prints the one-time activation link for the first administrator.
+
+The installer is deliberately downloaded before execution so it can be reviewed locally. A
+signed APT repository will replace this source-based bootstrap after the signing and publication
+process has been completed. See the [Debian 13 installation guide](docs/11-installation-debian.md)
+for network, TLS and operational details.
+
+After installation, routine administration is performed with `sudo transmy status`,
+`sudo transmy doctor`, `sudo transmy backup` and `sudo transmy upgrade`.
+
+## Development Setup
 
 ### Requirements
 
 - Docker Desktop, or Docker Engine with Docker Compose v2;
 - Git.
 
-### Local Installation
+### Local Environment
 
 After cloning the repository, open its directory and prepare the local configuration:
 
