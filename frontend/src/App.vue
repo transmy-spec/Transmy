@@ -8,7 +8,9 @@ import { locale, setLocale, t, type Locale } from './i18n'
 type Role = { code: string; label: string; scope_type: string; scope_id: string }
 type WorkContext = { id: string; name: string; service_name: string; establishment_name: string }
 type Session = { user: { id: string; username: string; display_name: string; email: string | null }; roles: Role[]; permissions: string[]; contexts: WorkContext[]; csrf_token: string }
-type StructureRow = { establishment_name: string; service_id: string; service_name: string; unit_id: string | null; unit_name: string | null }
+type StructureRow = { establishment_name: string; service_id: string; service_name: string; unit_id: string | null; unit_name: string | null; unit_status: 'active' | 'inactive' | null }
+type PersonUnitOption = { id: string; label: string }
+type AuthorizedUnit = { id: string; name: string; service_name: string; establishment_name: string }
 type Person = { id: string; internal_reference: string; family_name: string; given_name: string; preferred_name: string | null; birth_date: string | null; status: 'active' | 'archived'; archive_reason?: string | null; row_version: number; unit_id: string; unit_name: string; service_name: string; establishment_name: string }
 type Reference = { id: string; code: string; label: string; color?: string; requires_acknowledgement?: boolean }
 type Transmission = { id: string; person_id: string; author_id: string; family_name: string; given_name: string; preferred_name: string | null; status: 'draft' | 'published'; category_label: string; color: string; importance_code: string; importance_label: string; requires_acknowledgement: boolean; content: string; author_name: string; published_at: string | null; created_at: string; version_number: number; row_version: number; acknowledged: boolean }
@@ -71,7 +73,12 @@ const selectedPerson = ref<Person | null>(null)
 const peopleQuery = ref('')
 const peopleStatus = ref<'active' | 'archived'>('active')
 const personMode = ref<'list' | 'create' | 'detail' | 'edit'>('list')
-const personForm = ref({ family_name: '', given_name: '', preferred_name: '', birth_date: '' })
+const personForm = ref({ family_name: '', given_name: '', preferred_name: '', birth_date: '', unit_id: '' })
+const personCreateUnits = ref<AuthorizedUnit[]>([])
+const personUpdateUnits = ref<AuthorizedUnit[]>([])
+const transferMode = ref(false)
+const transferUnitId = ref('')
+const transferReason = ref('')
 const archiveReason = ref('')
 const transmissions = ref<Transmission[]>([])
 const selectedTransmission = ref<Transmission | null>(null)
@@ -115,6 +122,13 @@ const printScheduleTitle = computed(() => {
 const isAdmin = computed(() => session.value?.permissions.includes('structure.manage') ?? false)
 const initials = computed(() => (session.value?.user.display_name ?? '').split(' ').map((part) => part[0]).join('').slice(0, 2))
 const currentContext = computed(() => session.value?.contexts[0] ?? null)
+const formatAuthorizedUnits = (units: AuthorizedUnit[]): PersonUnitOption[] => units.map((unit) => ({
+  id: unit.id,
+  label: `${unit.establishment_name} · ${unit.service_name} · ${unit.name}`,
+}))
+const personCreateUnitOptions = computed(() => formatAuthorizedUnits(personCreateUnits.value))
+const personUpdateUnitOptions = computed(() => formatAuthorizedUnits(personUpdateUnits.value))
+const transferUnitOptions = computed(() => personUpdateUnitOptions.value.filter((unit) => unit.id !== selectedPerson.value?.unit_id))
 const navigation = computed(() => {
   const items = [{ id: 'dashboard', label: t('dashboard'), icon: LayoutDashboard }]
   if (session.value?.permissions.includes('person.search')) items.push({ id: 'people', label: t('people'), icon: ContactRound })
@@ -189,7 +203,15 @@ async function selectView(view: string) {
       selectedUser.value = null
     }
     if (view === 'audit') auditEvents.value = (await api<{ items: Record<string, string>[] }>('/api/v1/audit-events')).items
-    if (view === 'people') await loadPeople()
+    if (view === 'people') {
+      if (session.value?.permissions.includes('person.create')) {
+        personCreateUnits.value = (await api<{ items: AuthorizedUnit[] }>('/api/v1/people/authorized-units?permission=person.create')).items
+      }
+      if (session.value?.permissions.includes('person.update')) {
+        personUpdateUnits.value = (await api<{ items: AuthorizedUnit[] }>('/api/v1/people/authorized-units?permission=person.update')).items
+      }
+      await loadPeople()
+    }
     if (view === 'personalized-plans') await loadPlanPeople()
     if (view === 'transmissions') await loadTransmissions()
     if (view === 'work') await loadWork()
@@ -537,7 +559,7 @@ async function openPersonPlan(person: Person) {
 }
 async function openPerson(person: Person) {
   try {
-    selectedPerson.value = await api<Person>(`/api/v1/people/${person.id}`); personMode.value = 'detail'
+    selectedPerson.value = await api<Person>(`/api/v1/people/${person.id}`); personMode.value = 'detail'; transferMode.value = false
     if (session.value?.permissions.includes('personalized_plan.read')) await loadPersonalizedPlan()
   }
   catch (error) { notice.value = error instanceof Error ? error.message : 'Fiche inaccessible.' }
@@ -579,24 +601,50 @@ async function savePersonalizedPlan(publish: boolean) {
   notice.value = publish ? 'Le projet personnalise a ete publie.' : 'Le brouillon chiffre a ete enregistre.'
   await loadPersonalizedPlan()
 }
-function startCreate() { personForm.value = { family_name: '', given_name: '', preferred_name: '', birth_date: '' }; personMode.value = 'create' }
+function startCreate() {
+  personForm.value = { family_name: '', given_name: '', preferred_name: '', birth_date: '', unit_id: personCreateUnitOptions.value[0]?.id ?? '' }
+  personMode.value = 'create'
+}
 function startEdit() {
   if (!selectedPerson.value) return
-  personForm.value = { family_name: selectedPerson.value.family_name, given_name: selectedPerson.value.given_name, preferred_name: selectedPerson.value.preferred_name ?? '', birth_date: selectedPerson.value.birth_date ?? '' }; personMode.value = 'edit'
+  personForm.value = { family_name: selectedPerson.value.family_name, given_name: selectedPerson.value.given_name, preferred_name: selectedPerson.value.preferred_name ?? '', birth_date: selectedPerson.value.birth_date ?? '', unit_id: selectedPerson.value.unit_id }
+  personMode.value = 'edit'
 }
 async function savePerson() {
-  if (!currentContext.value) return
   saving.value = true; notice.value = ''
-  const body = { ...personForm.value, preferred_name: personForm.value.preferred_name || null, birth_date: personForm.value.birth_date || null }
+  const { unit_id, ...identity } = personForm.value
+  const body = { ...identity, preferred_name: identity.preferred_name || null, birth_date: identity.birth_date || null }
   try {
     if (personMode.value === 'create') {
-      await api('/api/v1/people', { method: 'POST', body: JSON.stringify({ ...body, unit_id: currentContext.value.id }) })
-      notice.value = 'La personne a ete ajoutee a votre unite.'; await loadPeople()
+      if (!unit_id) throw new Error('Choisissez une unité de rattachement.')
+      await api('/api/v1/people', { method: 'POST', body: JSON.stringify({ ...body, unit_id }) })
+      notice.value = 'La personne a été ajoutée à l’unité sélectionnée.'; await loadPeople()
     } else if (selectedPerson.value) {
       selectedPerson.value = await api<Person>(`/api/v1/people/${selectedPerson.value.id}`, { method: 'PATCH', headers: { 'If-Match': `"${selectedPerson.value.row_version}"` }, body: JSON.stringify(body) })
-      personMode.value = 'detail'; notice.value = 'La fiche a ete mise a jour.'
+      personMode.value = 'detail'; notice.value = 'La fiche a été mise à jour.'
     }
   } catch (error) { notice.value = error instanceof Error ? error.message : 'Enregistrement impossible.' }
+  finally { saving.value = false }
+}
+function startTransfer() {
+  if (!selectedPerson.value) return
+  transferUnitId.value = transferUnitOptions.value[0]?.id ?? ''
+  transferReason.value = ''
+  transferMode.value = true
+}
+async function transferPerson() {
+  if (!selectedPerson.value || !transferUnitId.value || transferReason.value.trim().length < 5) return
+  saving.value = true; notice.value = ''
+  try {
+    await api(`/api/v1/people/${selectedPerson.value.id}/transfer`, {
+      method: 'POST',
+      headers: { 'If-Match': `"${selectedPerson.value.row_version}"` },
+      body: JSON.stringify({ unit_id: transferUnitId.value, reason: transferReason.value.trim() }),
+    })
+    notice.value = 'La personne a été rattachée à la nouvelle unité.'
+    const person = selectedPerson.value
+    await openPerson(person)
+  } catch (error) { notice.value = error instanceof Error ? error.message : 'Rattachement impossible.' }
   finally { saving.value = false }
 }
 async function archivePerson() {
@@ -954,7 +1002,14 @@ onMounted(async () => {
               ></label><label>Date de naissance<input
                 v-model="personForm.birth_date"
                 type="date"
-              ></label>
+              ></label><label v-if="personMode === 'create'">Unité de rattachement<select
+                v-model="personForm.unit_id"
+                required
+              ><option
+                v-for="unit in personCreateUnitOptions"
+                :key="unit.id"
+                :value="unit.id"
+              >{{ unit.label }}</option></select><small>La personne sera visible par les professionnels habilités sur cette unité.</small></label>
             </div>
             <div class="form-actions">
               <button
@@ -977,17 +1032,62 @@ onMounted(async () => {
               <ArrowLeft :size="17" />Retour a la liste
             </button>
             <header>
-              <span class="person-avatar large">{{ selectedPerson.given_name[0] }}{{ selectedPerson.family_name[0] }}</span><div><p>{{ selectedPerson.internal_reference }}</p><h2>{{ selectedPerson.preferred_name || selectedPerson.given_name }} {{ selectedPerson.family_name }}</h2><span class="active-status">Active</span></div><button
-                v-if="session.permissions.includes('person.update')"
-                class="secondary-button"
-                @click="startEdit"
-              >
-                <Pencil :size="16" />Modifier
-              </button>
+              <span class="person-avatar large">{{ selectedPerson.given_name[0] }}{{ selectedPerson.family_name[0] }}</span><div><p>{{ selectedPerson.internal_reference }}</p><h2>{{ selectedPerson.preferred_name || selectedPerson.given_name }} {{ selectedPerson.family_name }}</h2><span class="active-status">Active</span></div><div class="person-detail-actions">
+                <button
+                  v-if="session.permissions.includes('person.update')"
+                  class="secondary-button"
+                  @click="startEdit"
+                >
+                  <Pencil :size="16" />Modifier
+                </button><button
+                  v-if="session.permissions.includes('person.update') && selectedPerson.status === 'active'"
+                  class="secondary-button"
+                  :disabled="!transferUnitOptions.length"
+                  @click="startTransfer"
+                >
+                  <Building2 :size="16" />Changer d’unité
+                </button>
+              </div>
             </header>
             <dl class="person-fields">
               <div><dt>Identite complete</dt><dd>{{ selectedPerson.given_name }} {{ selectedPerson.family_name }}</dd></div><div><dt>Date de naissance</dt><dd>{{ selectedPerson.birth_date ? new Date(selectedPerson.birth_date).toLocaleDateString('fr-FR') : 'Non renseignee' }}</dd></div><div><dt>Unite</dt><dd>{{ selectedPerson.establishment_name }} · {{ selectedPerson.service_name }} · {{ selectedPerson.unit_name }}</dd></div>
             </dl>
+            <form
+              v-if="transferMode && selectedPerson.status === 'active'"
+              class="person-transfer-form"
+              @submit.prevent="transferPerson"
+            >
+              <div>
+                <h3>Changer l’unité de rattachement</h3><p>Le rattachement actif actuel sera clôturé.</p>
+              </div><label>Nouvelle unité<select
+                v-model="transferUnitId"
+                required
+              ><option
+                v-for="unit in transferUnitOptions"
+                :key="unit.id"
+                :value="unit.id"
+              >{{ unit.label }}</option></select></label><label>Motif du changement<input
+                v-model="transferReason"
+                required
+                minlength="5"
+                maxlength="500"
+                placeholder="Ex. changement de groupe"
+              ></label><div class="form-actions">
+                <button
+                  type="button"
+                  class="secondary-button"
+                  @click="transferMode = false"
+                >
+                  Annuler
+                </button><button
+                  type="submit"
+                  class="primary-button"
+                  :disabled="saving || !transferUnitId || transferReason.trim().length < 5"
+                >
+                  Confirmer le rattachement
+                </button>
+              </div>
+            </form>
             <section
               v-if="session.permissions.includes('personalized_plan.read')"
               class="plan-panel"

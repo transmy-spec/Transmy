@@ -49,11 +49,12 @@ services:
 
   keycloak:
     command:
-      - start
-      - --http-enabled=true
-      - --http-relative-path=/oidc
-      - --health-enabled=true
-      - --import-realm
+      - |
+        case "$$APP_PUBLIC_URL" in
+          */) echo >&2 "APP_PUBLIC_URL must not have a trailing slash"; exit 64 ;;
+        esac
+        exec /opt/keycloak/bin/kc.sh start --http-enabled=true --http-relative-path=/oidc --health-enabled=true --import-realm
+
     environment:
       KC_HOSTNAME: https://${APP_DOMAIN:?Set APP_DOMAIN for production}/oidc
 

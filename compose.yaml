@@ -116,6 +116,7 @@ services:
       APP_DATABASE_NAME: ${APP_DATABASE_NAME:-transmissions}
       APP_DATABASE_USER: ${APP_DATABASE_USER:-transmissions_app}
       APP_DATABASE_PASSWORD: ${APP_DATABASE_PASSWORD:?Set APP_DATABASE_PASSWORD in .env}
+      APP_OIDC_ISSUER: ${APP_PUBLIC_URL:-https://localhost}/oidc/realms/transmissions
       APP_OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?Set OIDC_CLIENT_SECRET in .env}
       APP_SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET in .env}
       APP_FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:-local-development-field-encryption-key-2026}
@@ -148,11 +149,14 @@ services:
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.7.0
+    entrypoint: ["/bin/sh", "-ec"]
     command:
-      - start-dev
-      - --http-relative-path=/oidc
-      - --health-enabled=true
-      - --import-realm
+      - |
+        case "$$APP_PUBLIC_URL" in
+          */) echo >&2 "APP_PUBLIC_URL must not have a trailing slash"; exit 64 ;;
+        esac
+        exec /opt/keycloak/bin/kc.sh start-dev --http-relative-path=/oidc --health-enabled=true --import-realm
+
     restart: unless-stopped
     environment:
       KC_DB: postgres
@@ -167,6 +171,8 @@ services:
       KC_PROXY_HEADERS: xforwarded
       KC_HOSTNAME: ${APP_PUBLIC_URL:-https://localhost}/oidc
       KC_HTTP_ENABLED: "true"
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL:-https://localhost}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?Set OIDC_CLIENT_SECRET in .env}
     volumes:
       - ${KEYCLOAK_REALM_FILE:-./infrastructure/keycloak/transmissions-realm.json}:/opt/keycloak/data/import/transmissions-realm.json:ro
     networks:

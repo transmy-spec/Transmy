@@ -13,15 +13,15 @@
       "name": "Application Transmissions",
       "enabled": true,
       "clientAuthenticatorType": "client-secret",
-      "secret": "local-transmissions-client-secret-2026",
+      "secret": "${OIDC_CLIENT_SECRET}",
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
       "publicClient": false,
-      "redirectUris": ["https://localhost/auth/callback"],
-      "webOrigins": ["https://localhost"],
+      "redirectUris": ["${APP_PUBLIC_URL}/auth/callback"],
+      "webOrigins": ["${APP_PUBLIC_URL}"],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "https://localhost/*"
+        "post.logout.redirect.uris": "${APP_PUBLIC_URL}/"
       }
     },
     {
