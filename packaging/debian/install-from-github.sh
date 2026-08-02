@@ -36,5 +36,10 @@ sh "$WORK_DIR/transmy/packaging/debian/build-package.sh" "$PACKAGE_VERSION"
 say "Installing Transmy and its Docker dependencies..."
 apt-get install --yes "$WORK_DIR/transmy/dist/transmy_${PACKAGE_VERSION}_all.deb"
 
-say "Starting the guided configuration..."
-transmy setup
+if [ -f /etc/transmy/transmy.env ]; then
+  say "Existing installation detected; starting the controlled upgrade..."
+  transmy upgrade
+else
+  say "Starting the guided configuration..."
+  transmy setup
+fi

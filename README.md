@@ -116,6 +116,9 @@ Keycloak, starts the production stack and schedules encrypted daily backups. Org
 establishment, service and unit names are completed later in the administration interface. The
 installer also prints the one-time activation link for the first administrator.
 
+The same command can be run again later: an existing installation is detected automatically,
+backed up and upgraded instead of restarting the initial setup.
+
 The installer is deliberately downloaded before execution so it can be reviewed locally. A
 signed APT repository will replace this source-based bootstrap after the signing and publication
 process has been completed. See the [Debian 13 installation guide](docs/11-installation-debian.md)
