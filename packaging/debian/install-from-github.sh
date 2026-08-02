@@ -26,6 +26,7 @@ apt-get update
 apt-get install --yes ca-certificates git python3
 
 WORK_DIR=$(mktemp -d)
+chmod 0755 "$WORK_DIR"
 say "Downloading Transmy ($GIT_REF)..."
 git clone --quiet --depth 1 --branch "$GIT_REF" "$GIT_REPOSITORY" "$WORK_DIR/transmy"
 

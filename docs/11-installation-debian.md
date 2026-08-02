@@ -1,7 +1,7 @@
 # Installation simplifiée sur Debian 13
 
-Le lot 24 fournit un paquet Debian et la commande d'administration `transmy`. Cette première
-version vise une VM Debian 13 dédiée, un domaine public et un certificat HTTPS obtenu par Caddy.
+Transmy fournit un paquet Debian et la commande d'administration `transmy`. Cette première
+version vise une VM Debian 13 dédiée, une adresse locale ou un domaine public et un certificat HTTPS obtenu par Caddy.
 Elle est destinée à l'évaluation avec des données fictives tant que les validations
 organisationnelles et réglementaires ne sont pas achevées.
 
@@ -23,16 +23,23 @@ Le workflow GitHub `Debian package` répète cette construction et publie le `.d
 ## Installation
 
 ```text
-sudo apt install './dist/transmy_0.27.0~rc1_all.deb'
-sudo transmy setup
+curl --proto '=https' --tlsv1.2 -fsSL \
+  https://raw.githubusercontent.com/transmy-spec/Transmy/newest/packaging/debian/install-from-github.sh \
+  -o /tmp/transmy-install.sh && sudo sh /tmp/transmy-install.sh
 ```
 
-L'assistant demande le mode public ou local, l'adresse ou le domaine, la langue initiale et le
-profil d'installation :
+Après quinze secondes sans réponse, l'assistant sélectionne le mode local et détecte
+automatiquement l'adresse IPv4 privée de la VM. Le mode public reste sélectionnable et demande
+alors le domaine et l'adresse ACME. L'assistant demande ensuite la langue initiale et le profil
+d'installation :
 
 - `production`, recommandé et sélectionné par défaut, demande le nom de l'association, de
   l'établissement, du service et de l'unité initiale ;
 - `evaluation` conserve une structure et des personnages entièrement fictifs pour les essais.
+
+En production, les noms de l'organisation, de l'établissement, du service et de l'unité initiale
+sont renseignés après activation du compte administrateur, depuis l'écran **Structure**. Ils ne
+bloquent donc plus l'installation technique.
 
 Il :
 

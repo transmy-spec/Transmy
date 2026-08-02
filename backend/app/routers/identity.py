@@ -34,6 +34,16 @@ class NameInput(BaseModel):
     name: str = Field(min_length=2, max_length=120)
 
 
+class StructureUpdateInput(BaseModel):
+    organization_name: str = Field(min_length=2, max_length=120)
+    establishment_id: UUID
+    establishment_name: str = Field(min_length=2, max_length=120)
+    service_id: UUID
+    service_name: str = Field(min_length=2, max_length=120)
+    unit_id: UUID
+    unit_name: str = Field(min_length=2, max_length=120)
+
+
 class UserStatusInput(BaseModel):
     status: str
     reason: str = Field(min_length=5, max_length=500)
@@ -182,6 +192,74 @@ def structure(
             {"organization_id": context.organization_id},
         ).mappings()
         return {"organization": dict(organization), "items": [dict(row) for row in rows]}
+
+
+@router.patch("/structure")
+def update_structure(
+    payload: StructureUpdateInput,
+    request: Request,
+    context: Annotated[SecurityContext, Depends(get_security_context)],
+) -> dict[str, Any]:
+    require_permission(context, "structure.manage")
+    verify_csrf(request, context, request.headers.get("X-CSRF-Token"))
+    names = {
+        "organization_name": payload.organization_name.strip(),
+        "establishment_name": payload.establishment_name.strip(),
+        "service_name": payload.service_name.strip(),
+        "unit_name": payload.unit_name.strip(),
+    }
+    with engine.begin() as connection:
+        scoped = connection.execute(
+            text(
+                """
+                SELECT 1 FROM app.establishment e
+                JOIN app.service s ON s.establishment_id = e.id
+                JOIN app.unit u ON u.service_id = s.id
+                WHERE e.organization_id = :organization_id
+                  AND e.id = :establishment_id AND s.id = :service_id AND u.id = :unit_id
+                """
+            ),
+            {
+                "organization_id": context.organization_id,
+                "establishment_id": payload.establishment_id,
+                "service_id": payload.service_id,
+                "unit_id": payload.unit_id,
+            },
+        ).first()
+        if not scoped:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "not_found")
+        connection.execute(
+            text("UPDATE app.organization SET name=:name WHERE id=:id"),
+            {"name": names["organization_name"], "id": context.organization_id},
+        )
+        connection.execute(
+            text("UPDATE app.establishment SET name=:name WHERE id=:id"),
+            {"name": names["establishment_name"], "id": payload.establishment_id},
+        )
+        connection.execute(
+            text("UPDATE app.service SET name=:name WHERE id=:id"),
+            {"name": names["service_name"], "id": payload.service_id},
+        )
+        connection.execute(
+            text("UPDATE app.unit SET name=:name WHERE id=:id"),
+            {"name": names["unit_name"], "id": payload.unit_id},
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO audit.event
+                  (organization_id, actor_user_id, event_type, target_type, target_id, metadata)
+                VALUES (:organization_id, :user_id, 'structure.updated', 'organization',
+                        :organization_id, CAST(:metadata AS jsonb))
+                """
+            ),
+            {
+                "organization_id": context.organization_id,
+                "user_id": context.user_id,
+                "metadata": json.dumps(names),
+            },
+        )
+    return names
 
 
 @router.get("/users")

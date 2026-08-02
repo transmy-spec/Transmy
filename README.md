@@ -110,9 +110,11 @@ sudo sh transmy-install.sh
 ```
 
 The script verifies Debian, builds the release candidate locally, installs the package and opens
-the guided setup. The assistant then creates installation-specific secrets, configures the local
-IP address or public domain, initializes Keycloak, starts the production stack and schedules
-encrypted daily backups. It also prints the one-time activation link for the first administrator.
+the guided setup. Local mode is selected automatically after 15 seconds and uses the private IP
+address detected on the server. The assistant creates installation-specific secrets, initializes
+Keycloak, starts the production stack and schedules encrypted daily backups. Organization,
+establishment, service and unit names are completed later in the administration interface. The
+installer also prints the one-time activation link for the first administrator.
 
 The installer is deliberately downloaded before execution so it can be reviewed locally. A
 signed APT repository will replace this source-based bootstrap after the signing and publication

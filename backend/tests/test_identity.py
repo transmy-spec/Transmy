@@ -9,6 +9,7 @@ from app.routers.identity import (
     MembershipInput,
     NameInput,
     ReasonInput,
+    StructureUpdateInput,
     UserInvitationInput,
     UserStatusInput,
     add_membership,
@@ -19,6 +20,7 @@ from app.routers.identity import (
     revoke_user_invitation,
     session,
     structure,
+    update_structure,
     update_user_status,
     user_detail,
     users,
@@ -140,6 +142,62 @@ def test_create_unit_hides_unknown_service() -> None:
     ):
         create_unit(UUID(int=1), NameInput(name="Unité B"), _request(), _context())
     assert error.value.status_code == 404
+
+
+def test_update_structure_checks_scope_updates_hierarchy_and_audits() -> None:
+    establishment_id = UUID("20000000-0000-4000-8000-000000000001")
+    service_id = UUID("30000000-0000-4000-8000-000000000001")
+    unit_id = UUID("40000000-0000-4000-8000-000000000001")
+    connection = MagicMock()
+    connection.execute.side_effect = [
+        MagicMock(first=lambda: (1,)), MagicMock(), MagicMock(),
+        MagicMock(), MagicMock(), MagicMock(),
+    ]
+    database = MagicMock()
+    database.begin.return_value.__enter__.return_value = connection
+    payload = StructureUpdateInput(
+        organization_name="Association Exemple",
+        establishment_id=establishment_id,
+        establishment_name="Maison Exemple",
+        service_id=service_id,
+        service_name="Accompagnement adultes",
+        unit_id=unit_id,
+        unit_name="Unite de vie",
+    )
+    with (
+        patch("app.routers.identity.engine", database),
+        patch("app.routers.identity.require_permission") as require,
+    ):
+        result = update_structure(payload, _request(), _context())
+
+    require.assert_called_once_with(_context(), "structure.manage")
+    assert result["organization_name"] == "Association Exemple"
+    assert connection.execute.call_count == 6
+    assert "Association Exemple" in connection.execute.call_args_list[-1].args[1]["metadata"]
+
+
+def test_update_structure_hides_hierarchy_outside_organization() -> None:
+    connection = MagicMock()
+    connection.execute.return_value.first.return_value = None
+    database = MagicMock()
+    database.begin.return_value.__enter__.return_value = connection
+    payload = StructureUpdateInput(
+        organization_name="Association Exemple",
+        establishment_id=UUID(int=2),
+        establishment_name="Maison Exemple",
+        service_id=UUID(int=3),
+        service_name="Accompagnement adultes",
+        unit_id=UUID(int=4),
+        unit_name="Unite de vie",
+    )
+    with (
+        patch("app.routers.identity.engine", database),
+        patch("app.routers.identity.require_permission"),
+        pytest.raises(HTTPException) as error,
+    ):
+        update_structure(payload, _request(), _context())
+    assert error.value.status_code == 404
+    assert connection.execute.call_count == 1
 
 
 def test_audit_events_returns_recent_events() -> None:

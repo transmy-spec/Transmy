@@ -41,6 +41,30 @@ prompt_value() {
   printf '%s' "${answer:-$default}"
 }
 
+prompt_value_timeout() {
+  label=$1
+  default=$2
+  seconds=$3
+  printf '%s [%s] (automatic in %ss): ' "$label" "$default" "$seconds" >&2
+  answer=$(timeout "$seconds" sh -c 'IFS= read -r value && printf "%s" "$value"' || true)
+  printf '%s' "${answer:-$default}"
+}
+
+detect_private_ipv4() {
+  python3 - <<'PY'
+import ipaddress
+import socket
+
+with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as connection:
+    connection.connect(("192.0.2.1", 9))
+    address = connection.getsockname()[0]
+
+if not ipaddress.ip_address(address).is_private:
+    raise SystemExit(1)
+print(address)
+PY
+}
+
 validate_domain() {
   printf '%s' "$1" | grep -Eq '^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$' ||
     die "invalid domain name: $1"
@@ -296,12 +320,14 @@ setup() {
   command -v openssl >/dev/null 2>&1 || die "OpenSSL is not installed"
   command -v python3 >/dev/null 2>&1 || die "Python 3 is not installed"
 
-  mode=${TRANSMY_MODE:-$(prompt_value "Installation mode (public/local)" "local")}
+  mode=${TRANSMY_MODE:-$(prompt_value_timeout "Installation mode (public/local)" "local" 15)}
   [ "$mode" = public ] || [ "$mode" = local ] ||
     die "installation mode must be 'public' or 'local'"
   if [ "$mode" = local ]; then
-    domain=${TRANSMY_DOMAIN:-$(prompt_value "Private IPv4 address" "192.168.1.51")}
+    domain=${TRANSMY_DOMAIN:-$(detect_private_ipv4)} ||
+      die "unable to detect a private IPv4 address; rerun with TRANSMY_DOMAIN=x.x.x.x"
     validate_ipv4 "$domain" || die "a private IPv4 address is required for local mode"
+    say "Detected private IPv4 address: $domain"
     email=${TRANSMY_ACME_EMAIL:-local-admin@transmy.invalid}
     tls_mode=local
   else
@@ -317,10 +343,10 @@ setup() {
   [ "$profile" = production ] || [ "$profile" = evaluation ] ||
     die "installation profile must be 'production' or 'evaluation'"
   if [ "$profile" = production ]; then
-    organization_name=${TRANSMY_ORGANIZATION_NAME:-$(prompt_value "Organization name" "Mon association")}
-    establishment_name=${TRANSMY_ESTABLISHMENT_NAME:-$(prompt_value "Establishment name" "Etablissement principal")}
-    service_name=${TRANSMY_SERVICE_NAME:-$(prompt_value "Service name" "Accompagnement")}
-    unit_name=${TRANSMY_UNIT_NAME:-$(prompt_value "Initial unit name" "Unite principale")}
+    organization_name=${TRANSMY_ORGANIZATION_NAME:-"Organisation a configurer"}
+    establishment_name=${TRANSMY_ESTABLISHMENT_NAME:-"Etablissement a configurer"}
+    service_name=${TRANSMY_SERVICE_NAME:-"Service a configurer"}
+    unit_name=${TRANSMY_UNIT_NAME:-"Unite a configurer"}
   else
     organization_name="Association Horizon"
     establishment_name="Maison des Tilleuls"

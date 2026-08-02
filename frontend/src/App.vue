@@ -4,11 +4,12 @@ import { Activity, Archive, ArrowLeft, BarChart3, Bell, Building2, CalendarDays,
 import { computed, onMounted, ref } from 'vue'
 
 import { locale, setLocale, t, type Locale } from './i18n'
+import './structure-settings.css'
 
 type Role = { code: string; label: string; scope_type: string; scope_id: string }
 type WorkContext = { id: string; name: string; service_name: string; establishment_name: string }
 type Session = { user: { id: string; username: string; display_name: string; email: string | null }; roles: Role[]; permissions: string[]; contexts: WorkContext[]; csrf_token: string }
-type StructureRow = { establishment_name: string; service_id: string; service_name: string; unit_id: string | null; unit_name: string | null; unit_status: 'active' | 'inactive' | null }
+type StructureRow = { establishment_id: string; establishment_name: string; service_id: string; service_name: string; unit_id: string | null; unit_name: string | null; unit_status: 'active' | 'inactive' | null }
 type PersonUnitOption = { id: string; label: string }
 type AuthorizedUnit = { id: string; name: string; service_name: string; establishment_name: string }
 type Person = { id: string; internal_reference: string; family_name: string; given_name: string; preferred_name: string | null; birth_date: string | null; status: 'active' | 'archived'; archive_reason?: string | null; row_version: number; unit_id: string; unit_name: string; service_name: string; establishment_name: string }
@@ -67,6 +68,7 @@ const pilotage = ref<Pilotage | null>(null)
 const pilotageDays = ref(30)
 const auditEvents = ref<Record<string, string>[]>([])
 const newUnitName = ref('')
+const structureForm = ref({ organization_name: '', establishment_name: '', service_name: '', unit_name: '' })
 const saving = ref(false)
 const people = ref<Person[]>([])
 const selectedPerson = ref<Person | null>(null)
@@ -196,7 +198,7 @@ async function completeActivation() {
 async function selectView(view: string) {
   activeView.value = view; mobileNavOpen.value = false; notice.value = ''
   try {
-    if (view === 'structure') structure.value = await api('/api/v1/structure')
+    if (view === 'structure') { structure.value = await api('/api/v1/structure'); syncStructureForm() }
     if (view === 'users') {
       users.value = (await api<{ items: User[] }>('/api/v1/users')).items
       structure.value = await api('/api/v1/structure')
@@ -662,6 +664,33 @@ async function createUnit() {
   saving.value = true
   try { await api(`/api/v1/services/${serviceId}/units`, { method: 'POST', body: JSON.stringify({ name: newUnitName.value.trim() }) }); newUnitName.value = ''; notice.value = 'L’unité a été créée et journalisée.'; structure.value = await api('/api/v1/structure') }
   catch (error) { notice.value = error instanceof Error ? error.message : 'Création impossible.' }
+  finally { saving.value = false }
+}
+function syncStructureForm() {
+  const first = structure.value?.items.find((item) => item.unit_id)
+  structureForm.value = {
+    organization_name: structure.value?.organization.name ?? '',
+    establishment_name: first?.establishment_name ?? '',
+    service_name: first?.service_name ?? '',
+    unit_name: first?.unit_name ?? '',
+  }
+}
+async function saveStructure() {
+  const first = structure.value?.items.find((item) => item.unit_id)
+  if (!first?.unit_id || Object.values(structureForm.value).some((value) => value.trim().length < 2)) return
+  saving.value = true
+  try {
+    await api('/api/v1/structure', { method: 'PATCH', body: JSON.stringify({
+      ...structureForm.value,
+      establishment_id: first.establishment_id,
+      service_id: first.service_id,
+      unit_id: first.unit_id,
+    }) })
+    structure.value = await api('/api/v1/structure')
+    syncStructureForm()
+    await loadSession()
+    notice.value = 'La structure a ete mise a jour et journalisee.'
+  } catch (error) { notice.value = error instanceof Error ? error.message : 'Mise a jour impossible.' }
   finally { saving.value = false }
 }
 async function logout() {
@@ -2606,6 +2635,16 @@ onMounted(async () => {
               </h1>
             </div>
           </div><form
+            class="structure-settings-form"
+            @submit.prevent="saveStructure"
+          >
+            <h2>Informations de la structure</h2>
+            <label>Organisation<input v-model="structureForm.organization_name" required minlength="2" maxlength="120"></label>
+            <label>Etablissement<input v-model="structureForm.establishment_name" required minlength="2" maxlength="120"></label>
+            <label>Service<input v-model="structureForm.service_name" required minlength="2" maxlength="120"></label>
+            <label>Unite initiale<input v-model="structureForm.unit_name" required minlength="2" maxlength="120"></label>
+            <button class="primary-button" :disabled="saving"><CheckCircle2 :size="17" />Enregistrer</button>
+          </form><form
             class="inline-form"
             @submit.prevent="createUnit"
           >
