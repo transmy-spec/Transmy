@@ -2,13 +2,29 @@ name: Quality
 
 on:
   push:
-    branches: [main]
+    branches: [master, newest]
+    tags: ["v*"]
   pull_request:
 
 permissions:
   contents: read
 
 jobs:
+  production-compose:
+    runs-on: ubuntu-latest
+    env:
+      APP_DATABASE_PASSWORD: synthetic-ci-app-password
+      KEYCLOAK_DATABASE_PASSWORD: synthetic-ci-keycloak-password
+      KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD: synthetic-ci-bootstrap-password
+      OIDC_CLIENT_SECRET: synthetic-ci-oidc-secret
+      SESSION_SECRET: synthetic-ci-session-secret
+      APP_DOMAIN: ci.transmy.invalid
+      APP_PUBLIC_URL: https://ci.transmy.invalid
+      ACME_EMAIL: ci@transmy.invalid
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose -f compose.yaml -f compose.production.yaml config --quiet
+
   backend:
     runs-on: ubuntu-latest
     defaults:

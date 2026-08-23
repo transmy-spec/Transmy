@@ -2145,7 +2145,7 @@ onMounted(async () => {
           <div class="page-heading">
             <div>
               <p class="eyebrow">
-                Lot 14 · Campagne pilote
+                Recette métier
               </p><h1 id="acceptance-title">
                 Recette métier
               </h1>
@@ -2198,7 +2198,7 @@ onMounted(async () => {
           <div class="page-heading">
             <div>
               <p class="eyebrow">
-                Lot 15 · Stabilisation
+                Suivi de stabilisation
               </p><h1 id="pilot-issues-title">
                 Anomalies pilote
               </h1>
@@ -2296,7 +2296,7 @@ onMounted(async () => {
           <div class="page-heading">
             <div>
               <p class="eyebrow">
-                Lot 13 · Gouvernance
+                Gouvernance du déploiement
               </p><h1 id="readiness-title">
                 Préparation du pilote
               </h1>

@@ -2,8 +2,8 @@
 set -eu
 
 GIT_REPOSITORY=${TRANSMY_GIT_REPOSITORY:-https://github.com/transmy-spec/Transmy.git}
-GIT_REF=${TRANSMY_GIT_REF:-newest}
-PACKAGE_VERSION=${TRANSMY_VERSION:-0.27.0~rc1}
+GIT_REF=${TRANSMY_GIT_REF:-v0.27.0}
+PACKAGE_VERSION=${TRANSMY_VERSION:-0.27.0}
 WORK_DIR=
 
 say() { printf '%s\n' "transmy: $*"; }

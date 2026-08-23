@@ -3,7 +3,7 @@ set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 REPOSITORY_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)
-VERSION=${1:-0.27.0~rc1}
+VERSION=${1:-0.27.0}
 ARCHITECTURE=${2:-all}
 OUTPUT_DIR=${3:-"$REPOSITORY_ROOT/dist"}
 BUILD_ROOT=$(mktemp -d)

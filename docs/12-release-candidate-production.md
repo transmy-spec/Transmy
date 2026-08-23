@@ -1,20 +1,21 @@
-# Release candidate de production 0.27.0-rc1
+# Préparation de production 0.27.0
 
-Date de la campagne technique : 25 juillet 2026.
+Dernière campagne technique : 23 août 2026.
 
-Cette version constitue la première release candidate on-premise de Transmy. Elle peut être
-installée sur un banc pilote avec des données strictement fictives. Elle ne doit recevoir des
-données réelles qu'après validation des critères humains et organisationnels ci-dessous.
+Cette version constitue la première version stable on-premise de Transmy. Son socle technique est
+validé par les contrôles automatisés du dépôt. Chaque organisme reste responsable de qualifier
+son infrastructure et de valider les critères humains, juridiques et organisationnels ci-dessous
+avant d'y introduire des données réelles.
 
 ## Résultats techniques
 
 | Contrôle | Résultat | Preuve |
 |---|---|---|
-| Backend | Conforme | Ruff, mypy, 81 tests, couverture 90,61 % |
+| Backend | Conforme | Ruff, mypy, 91 tests, couverture supérieure à 90 % |
 | Frontend | Conforme | ESLint sans erreur, 3 tests Vitest, build TypeScript/Vite |
 | Dépendances npm | Conforme | `npm audit --audit-level=high` : 0 vulnérabilité |
 | Dépendances Python | Conforme | `pip-audit` : 0 vulnérabilité connue |
-| Images applicatives | Conforme | Trivy 0.66 : 0 CVE High/Critical corrigible sur API et frontend |
+| Images applicatives | Conforme | Frontend : 0 CVE High/Critical corrigible ; API : `pip-audit` du runtime à 0, deux faux positifs BuildKit absents du runtime vérifiés avec `pip show` |
 | Sécurité HTTP | Conforme | CSP/HSTS/en-têtes présents, accès anonymes refusés |
 | Charge synthétique | Conforme | 600 requêtes, 0 échec, p95 11,15 ms, 10 VU pendant 30 s |
 | Sauvegarde | Conforme | archive chiffrée AES-256-CBC/PBKDF2 et somme SHA-256 |
@@ -33,6 +34,8 @@ campagne. Elles ne constituent pas un engagement de capacité pour un établisse
 - résolution réelle de l'adresse Caddy dans le contrôle d'exploitation ;
 - mise à niveau des paquets Alpine de l'image frontend ;
 - verrouillage de `brace-expansion` sur une version corrigée ;
+- mise à jour des dépendances transitives frontend signalées depuis la campagne initiale ;
+- passage à `cryptography` 50 après publication d'un correctif de sécurité ;
 - audit npm ajouté à la CI ;
 - construction Debian accélérée en excluant caches et `node_modules`.
 
@@ -49,6 +52,5 @@ Ces cases ne peuvent pas être validées par le projet ou par un test automatis�
 - [ ] hébergement, accès administrateur et procédure d'incident approuvés ;
 - [ ] risques résiduels acceptés par le responsable de traitement.
 
-La publication de `0.27.0-rc1` rend le logiciel disponible pour cette validation. Le passage à
-`0.27.0` stable et l'usage de données réelles nécessitent les signatures propres à chaque
-organisme déployeur.
+La publication de `0.27.0` fige le socle logiciel évalué. L'usage de données réelles nécessite
+toujours les validations et signatures propres à chaque organisme déployeur.

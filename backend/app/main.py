@@ -35,7 +35,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(
     title="Transmissions API",
-    version="0.1.0",
+    version="0.27.0",
     docs_url=None,
     redoc_url=None,
     lifespan=lifespan,

@@ -105,11 +105,11 @@ Download the installer and run it as root. These are all the commands required:
 
 ```bash
 curl --proto '=https' --tlsv1.2 -fsSLo transmy-install.sh \
-  https://raw.githubusercontent.com/transmy-spec/Transmy/newest/packaging/debian/install-from-github.sh
+  https://raw.githubusercontent.com/transmy-spec/Transmy/v0.27.0/packaging/debian/install-from-github.sh
 sudo sh transmy-install.sh
 ```
 
-The script verifies Debian, builds the release candidate locally, installs the package and opens
+The script verifies Debian, builds the stable release locally, installs the package and opens
 the guided setup. Local mode is selected automatically after 15 seconds and uses the private IP
 address detected on the server. The assistant creates installation-specific secrets, initializes
 Keycloak, starts the production stack and schedules encrypted daily backups. Organization,
@@ -257,7 +257,7 @@ deployment context.
 | [Personalized support plan](docs/09-projet-personnalise.md) | Functional framework for personalized support planning |
 | [Operations](docs/10-exploitation-production.md) | Deployment, backup, restore and incident procedures |
 | [Debian 13 installation](docs/11-installation-debian.md) | Package, guided setup and system administration |
-| [Production release candidate](docs/12-release-candidate-production.md) | Technical evidence and external approval gates |
+| [Production readiness](docs/12-release-candidate-production.md) | Technical evidence and organization-specific approval gates |
 
 The complete index is available in the [docs](docs/README.md) directory.
 

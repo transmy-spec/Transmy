@@ -3,7 +3,7 @@ set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 REPOSITORY_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)
-PACKAGE=${1:-"$REPOSITORY_ROOT/dist/transmy_0.27.0~rc1_all.deb"}
+PACKAGE=${1:-"$REPOSITORY_ROOT/dist/transmy_0.27.0_all.deb"}
 
 test -f "$PACKAGE"
 dpkg-deb --info "$PACKAGE"

@@ -4,14 +4,14 @@ build-backend = "hatchling.build"
 
 [project]
 name = "transmissions-api"
-version = "0.1.0"
+version = "0.27.0"
 description = "API de l'application Transmissions"
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
 license = { text = "AGPL-3.0-only" }
 dependencies = [
   "alembic>=1.15,<2",
-  "cryptography>=45,<50",
+  "cryptography>=50,<51",
   "fastapi>=0.115,<1",
   "httpx>=0.28,<1",
   "psycopg[binary]>=3.2,<4",

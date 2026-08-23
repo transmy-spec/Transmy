@@ -11,8 +11,8 @@ Depuis la racine du dépôt, sur Debian 13 :
 
 ```text
 chmod +x packaging/debian/*.sh packaging/debian/transmy
-packaging/debian/build-package.sh '0.27.0~rc1'
-packaging/debian/test-package.sh 'dist/transmy_0.27.0~rc1_all.deb'
+packaging/debian/build-package.sh '0.27.0'
+packaging/debian/test-package.sh 'dist/transmy_0.27.0_all.deb'
 ```
 
 Le paquet est produit dans `dist/`. Il embarque les sources et construit localement les images
@@ -24,7 +24,7 @@ Le workflow GitHub `Debian package` répète cette construction et publie le `.d
 
 ```text
 curl --proto '=https' --tlsv1.2 -fsSL \
-  https://raw.githubusercontent.com/transmy-spec/Transmy/newest/packaging/debian/install-from-github.sh \
+  https://raw.githubusercontent.com/transmy-spec/Transmy/v0.27.0/packaging/debian/install-from-github.sh \
   -o /tmp/transmy-install.sh && sudo sh /tmp/transmy-install.sh
 ```
 
@@ -162,7 +162,7 @@ sudo transmy upgrade
 `transmy upgrade` crée une sauvegarde, exécute un exercice de restauration, reconstruit les
 images, applique les migrations et contrôle le point de santé public.
 
-Depuis le lot 26, `transmy start` et `transmy upgrade` réconcilient aussi le client technique
+`transmy start` et `transmy upgrade` réconcilient aussi le client technique
 Keycloak utilisé pour les invitations. Une installation existante reçoit automatiquement son
 secret local manquant et les permissions minimales `manage-users` et `view-users`. Aucun compte
 ni mot de passe utilisateur existant n'est réinitialisé.

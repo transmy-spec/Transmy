@@ -1,8 +1,6 @@
 name: Publish signed APT repository
 
 on:
-  push:
-    tags: ["v*"]
   workflow_dispatch:
     inputs:
       version:
@@ -39,11 +37,7 @@ jobs:
         env:
           REQUESTED_VERSION: ${{ inputs.version }}
         run: |
-          if [ "${GITHUB_REF_TYPE}" = tag ]; then
-            VERSION="${GITHUB_REF_NAME#v}"
-          else
-            VERSION="$REQUESTED_VERSION"
-          fi
+          VERSION="$REQUESTED_VERSION"
           case "$VERSION" in
             ""|*[!0-9.]*)
               printf '%s\n' "Invalid Debian version: $VERSION" >&2
